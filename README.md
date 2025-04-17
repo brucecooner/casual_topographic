@@ -1,2 +1,2 @@
 # casual_topographic
-get elevations in North America in real quick (USGS elevation point query service)
+get elevation of points in North America real quick (USGS elevation point query service)

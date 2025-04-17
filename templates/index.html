@@ -1,0 +1,574 @@
+<!doctype html>
+<html>
+<head>
+	<title>Casual Topographic</title>
+	<link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+	<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/index.css') }}">
+
+	<script src="{{url_for('static', filename='js/LogChannels.js')}}"></script>
+	<script src="{{url_for('static', filename='js/DoStuff.js')}}"></script>
+	<script src="{{url_for('static', filename='js/util.js')}}"></script>
+
+	<script type="module">
+		import { DoNTimes, DoNTimesFactory } from "{{url_for('static', filename='/js/DoNTimes.js')}}"
+		window.DoNTimesFactory = DoNTimesFactory;
+		window.DoNTimes = DoNTimes;
+
+		import { ShadowTime, ShadowTimeFactory } from "{{url_for('static', filename='/js/ShadowTime.js')}}"
+		window.ShadowTime = ShadowTime;
+		window.ShadowTimeFactory = ShadowTimeFactory;
+	</script>
+</head>
+
+<!-- notes:
+maps events demo: https://developers.google.com/maps/documentation/javascript/app_events 
+-->
+
+<body>
+
+<script>
+	// =========================================================================
+	// constants
+	// =========================================================================
+	const app_events = [
+		"mouse_left_click_lng_lat",
+		"mouse_right_click_lng_lat",
+		"mouse_move_lng_lat",
+		"map_drag",
+		"show_info_panel",
+		"hide_info_panel",
+	];
+
+	const DISPLAY_PRECISION = 5;
+	const MOUSE_POINTER_STILL_ACTIVATION_TIME_SECONDS = 0.75;
+	const MOUSE_POINTER_STILL_ACTIVATION_TIME_MILLISECONDS = MOUSE_POINTER_STILL_ACTIVATION_TIME_SECONDS * 1000;
+
+	const COORDS_PANEL_INITIAL_TEXT = 'hover over a location to see elevation';
+	const COORDS_PANEL_INITIAL_TEXT_TOUCH = "touch a location to see elevation";
+
+	const shadow_day_start_hour = 4;
+	const shadow_update_interval_minutes = 1;
+
+	const box_shadow_x_offset_max = 10;
+	const box_shadow_y_offset_max = 10;
+	const box_shadow_y_offset_min = 5;
+	const box_shadow_blur_radius = 2;
+	const box_shadow_spread = 1;
+
+	let shadow_time = null;
+
+	// =========================================================================
+	// variables
+	// =========================================================================
+	let elevation_at_mouse_pointer = null;
+
+	let mouse_pointer_still_timeout_id = null;
+
+	let mouse_pointer_lng_lat = null;	// becomes {lng, lat}
+
+	let mouse_tooltip_element = null;
+	let mouse_x = 0;
+	let mouse_y = 0;
+	let mouse_at_rest = false;
+
+	let mouse_tooltip_string = "";
+	let mouse_tooltip_dnt = null;
+
+	// google map instance
+	gMap = null;
+
+	// =========================================================================
+	// make the things
+	// =========================================================================
+	// logging system
+	var logging = LogChannelsNS.LogChannels(initialEnabled=false);
+	logging.addChannel("index", {"name_prefix_enabled":true });
+	logging.addChannel("DoStuff", {"name_prefix_enabled":true });
+	logging.addChannel("mouse", {"name_prefix_enabled":true, "enabled":false });
+	logging.addChannel("dnt", {"name_prefix_enabled": false, "enabled":false});
+	logging.addChannel("shadow", {"name_prefix_enabled": true, "enabled":false});
+
+	// event system
+	var doStuff = DoStuffNS.DoStuff(logging.DoStuff, true);
+
+	// TODO: enumerate event names somewhere ?
+	app_events.forEach(cur_event => {
+		doStuff.addEvent(cur_event);
+	});
+
+	// touch stuff got whacked in
+	const is_touch_device = isTouchDevice();
+	logging.index("is_touch_device: ", is_touch_device);
+	let touch_mouse_x = 0;
+	let touch_mouse_y = 0;
+
+	// --------------------------------------------------------------------------
+	// let current_test_hour = 2;
+	// let current_test_minutes = 0;
+	// let test_interval_id = null;
+
+	// function timeTestTimeout()
+	// {
+	// 	// console.log(`test time: ${current_test_hour}:${current_test_minutes}`);
+
+	// 	current_test_minutes += 1;
+
+	// 	if (current_test_minutes >= 60)
+	// 	{
+	// 		current_test_hour += 1;
+	// 		current_test_minutes = 0;
+	// 	}
+
+	// 	if (current_test_hour > 24)
+	// 	{
+	// 		current_test_hour = 0;
+	// 	}
+
+	// 	logging.index("current test time ", current_test_hour, ":", current_test_minutes);
+
+	// 	// setShadowsToTime(current_test_hour, current_test_minutes, day_start_hour);
+	// 	shadow_time.setTime(current_test_hour, current_test_minutes);
+	// }
+
+	// // -------------------------------------------------------------------------
+	// function startTimeTest(interval_seconds, start_test_hour)
+	// {
+	// 	if (test_interval_id !== null)
+	// 	{
+	// 		stopTimeTest();
+	// 	}
+
+	// 	current_test_hour = start_test_hour;
+	// 	test_interval_id = setInterval(timeTestTimeout, interval_seconds * 1000);
+	// 	logging.index("starting time test with interval(sec): ", interval_seconds);
+	// }
+
+	// function stopTimeTest()
+	// {
+	// 	if (test_interval_id)
+	// 	{
+	// 		clearInterval(test_interval_id);
+	// 		test_interval_id = null;
+	// 	}
+	// 	else
+	// 	{
+	// 		console.error("time test not running");
+	// 	}
+	// }
+
+	// -------------------------------------------------------------------------
+	function getCoordsPanelIdleText()
+	{
+		return is_touch_device ? COORDS_PANEL_INITIAL_TEXT_TOUCH : COORDS_PANEL_INITIAL_TEXT;
+	}
+
+	// -------------------------------------------------------------------------
+	function setCoordsPanel(lng_lat_obj_or_string)
+	{
+		let text = '';
+
+		if (typeof lng_lat_obj_or_string == "string")
+		{
+			text = lng_lat_obj_or_string;
+		}
+		else if (typeof lng_lat_obj_or_string == "object")
+		{
+			// it's probably one of these
+			text = toDisplayCoords(	lng_lat_obj_or_string["lng"],
+											lng_lat_obj_or_string["lat"], DISPLAY_PRECISION);
+		}
+
+		coordsEl = document.getElementById('currentCoordsPanelID');
+		coordsEl.innerHTML = text;
+	}
+
+	// ----------------------------------------------------------------------------
+	// called when mouse is still for a while
+	function mousePointerStillCallback()
+	{
+		mouse_at_rest = true;
+
+		mouse_tooltip_string = '? ft';	// TODO: magic string
+		mouse_tooltip_dnt.start();
+		setMouseToolTip(mouse_x, mouse_y, mouse_tooltip_string);
+
+		getElevation(mouse_pointer_lng_lat).then(elevation => {
+			mouse_tooltip_dnt.stop();
+			if (mouse_at_rest)
+			{
+				setMouseToolTip(mouse_x, mouse_y, `${toPrecision(elevation, DISPLAY_PRECISION)}`);
+			}
+		}).catch(err => {
+			console.error(err);
+			clearMouseStillTimeout();
+			// setMouseToolTip(mouse_x, mouse_y, `:( ${err}`);
+			setMouseToolTip(mouse_x, mouse_y, ':(  unavailable');
+		});
+	}
+
+	// ----------------------------------------------------------------------------
+	function clearMouseStillTimeout()
+	{
+		if (mouse_pointer_still_timeout_id)
+		{
+			clearTimeout(mouse_pointer_still_timeout_id);
+			mouse_pointer_still_timeout_id = null;
+		}
+		mouse_tooltip_dnt.stop();
+	}
+
+	// ----------------------------------------------------------------------------
+	function setMouseStillTimeout()
+	{
+		logging.mouse("setMouseStillTimeout()");
+		// clear previous
+		clearMouseStillTimeout();
+
+		mouse_pointer_still_timeout_id = setTimeout(mousePointerStillCallback, MOUSE_POINTER_STILL_ACTIVATION_TIME_MILLISECONDS);
+
+		logging.mouse("timeout set: ", mouse_pointer_still_timeout_id);
+	}
+
+	// ----------------------------------------------------------------------------
+	function handleMapMouseMove(lng_lat_obj)
+	{
+		// logging.index("handleMapMouseMove()");
+
+		mouse_at_rest = false;
+
+		if (mouse_tooltip_string.includes('?'))
+		{
+			hideMouseToolTip();
+		}
+
+		mouse_pointer_lng_lat = lng_lat_obj;
+
+		setCoordsPanel(lng_lat_obj);
+
+		setMouseStillTimeout();
+	}
+
+	// -------------------------------------------------------------------------
+	// function dropMapPin(lng, lat, text)
+	// {
+	// 	const AdvancedMarkerElement = new google.maps.marker.AdvancedMarkerElement({
+	// 		map: Gmap,
+	// 		// content: buildContent(property),
+	// 		position: {lng, lat},
+	// 		title: text,
+	// 	});	
+	// }
+
+	// -------------------------------------------------------------------------
+	// function handleMouseLeftClick(lng_lat_obj)
+	// {
+	// 	logging.index("h: mouse left click");
+
+	// 	mouse_pointer_lng_lat = lng_lat_obj;
+
+	// 	// this needs it own whole thing
+	// 	getElevation(mouse_pointer_lng_lat, (elevation) => {
+	// 		dropMapPin(lng_lat_obj["lng"], lng_lat_obj["lat"], `${toPrecision(elevation, 2)} ft`);
+	// 	});
+	// }
+
+	// ----------------------------------------------------------------------------
+	function handleMouseMapLeftClickTouch(lng_lat_object)
+	{
+		// logging.index("handleMouseMapLeftClickTouch()");
+
+		setCoordsPanel(lng_lat_object);
+
+		mouse_tooltip_string = '? ft';	// TODO: magic string
+		mouse_tooltip_dnt.start();
+		setMouseToolTip(touch_mouse_x, touch_mouse_y, mouse_tooltip_string);
+
+		getElevation(lng_lat_object).then(elevation => {
+			mouse_tooltip_dnt.stop();
+
+			setMouseToolTip(touch_mouse_x, touch_mouse_y, `${toPrecision(elevation, DISPLAY_PRECISION)}`);
+		}).catch(err => {
+			console.error(err);
+			// setMouseToolTip(mouse_x, mouse_y, `:( ${err}`);
+			setMouseToolTip(touch_mouse_x, touch_mouse_y, ':(  unavailable');
+		});
+	}
+
+	// ----------------------------------------------------------------------------
+	function handleDocMouseMove(mouse_evt)
+	{
+		logging.mouse("handleDocMouseMove()");
+
+		// hack? Can't we get element from event?
+		const elems = document.getElementsByTagName("body");
+		const rect = elems[0].getBoundingClientRect();
+
+		// Calculate coordinates relative to the element
+		mouse_x = Math.max(0, Math.round(event.clientX - rect.left));
+		mouse_y = Math.max(0, Math.round(event.clientY - rect.top));
+
+		logging.mouse("mouse x: ", mouse_x, "  mouse y:", mouse_y);
+	}
+
+	// ----------------------------------------------------------------------------
+	function hideMouseToolTip()
+	{
+		mouse_tooltip_element.style.display = 'none';
+	}
+
+	// ----------------------------------------------------------------------------
+	function setMouseTooltipText(text)
+	{
+		mouse_tooltip_string = text;
+
+		mouse_tooltip_element.style.display = 'initial';
+		mouse_tooltip_element.innerHTML = mouse_tooltip_string;
+	}
+
+	// ----------------------------------------------------------------------------
+	function setMouseToolTip(x, y, text)
+	{
+		mouse_tooltip_element.style.display = 'initial';
+		mouse_tooltip_element.style.left = `${x + 3}px`;
+		mouse_tooltip_element.style.top = `${y + 3}px`;
+
+		setMouseTooltipText(text);
+	}
+
+	// ----------------------------------------------------------------------------
+	function showInfoPanel(evt)
+	{
+		logging.index("showInfoPanel()");
+
+		document.getElementById("appInfoTextPanelID").style.visibility = "visible";
+		document.getElementById("appInfoTextPanelID").style.opacity = 1;
+	}
+
+	// ----------------------------------------------------------------------------
+	function hideInfoPanel(evt)
+	{
+		document.getElementById("appInfoTextPanelID").style.visibility = "hidden";
+		document.getElementById("appInfoTextPanelID").style.opacity = 0;
+	}
+
+	// ----------------------------------------------------------------------------
+	function handleTouchStart(event)
+	{
+		// logging.index("handleTouchStart()");
+
+		const elems = document.getElementsByTagName("body");
+		const rect = elems[0].getBoundingClientRect();
+
+		const touch = event.changedTouches[0];
+
+		// Calculate coordinates relative to the element
+		touch_mouse_x = Math.max(0, Math.round(touch.clientX - rect.left));
+		touch_mouse_y = Math.max(0, Math.round(touch.clientY - rect.top));
+
+		logging.mouse("touch mouse x: ", touch_mouse_x, "  touch mouse y:", touch_mouse_y);
+	}
+
+	// ----------------------------------------------------------------------------
+	function handleTouchEnd(event)
+	{
+		// logging.index("handleTouchEnd()");
+
+		logging.index("touch event", event);
+
+		const elems = document.getElementsByTagName("body");
+		const rect = elems[0].getBoundingClientRect();
+
+		const touch = event.changedTouches[0];
+
+		// Calculate coordinates relative to the element
+		touch_mouse_x = Math.max(0, Math.round(touch.clientX - rect.left));
+		touch_mouse_y = Math.max(0, Math.round(touch.clientY - rect.top));
+
+		logging.mouse("touch mouse x: ", touch_mouse_x, "  touch mouse y:", touch_mouse_y);
+	}
+
+	// ----------------------------------------------------------------------------
+	function handleMapDrag(event)
+	{
+		logging.index("handleMapDrag()");
+
+		mouse_at_rest = false;
+		hideMouseToolTip();
+		setCoordsPanel(getCoordsPanelIdleText());
+	}
+
+	// ----------------------------------------------------------------------------
+	function initApp()
+	{
+		mouse_tooltip_element = document.getElementById("mouseTooltipId");
+		setCoordsPanel(getCoordsPanelIdleText());
+
+		doStuff.sub("map_drag", handleMapDrag );
+
+		// mouse move handler (on body, not map)
+		if (!is_touch_device)
+		{
+			body_elements = document.getElementsByTagName("body");
+			body_elements[0].addEventListener("mousemove", handleDocMouseMove);
+			doStuff.sub("mouse_move_lng_lat", handleMapMouseMove);
+
+			document.getElementById("appInfoTriggerPanelID").addEventListener("mouseenter", doStuff.do.bind(doStuff, "show_info_panel"));
+			document.getElementById("appInfoTextPanelID").addEventListener("mouseleave", doStuff.do.bind(doStuff, "hide_info_panel"));
+
+			doStuff.sub("show_info_panel", showInfoPanel);
+			doStuff.sub("hide_info_panel", hideInfoPanel);
+		}
+		else
+		{
+			body_elements = document.getElementsByTagName("body");
+			body_elements[0].addEventListener("touchstart", handleTouchStart);
+			body_elements[0].addEventListener("touchend", handleTouchEnd);
+
+			doStuff.sub("mouse_left_click_lng_lat", handleMouseMapLeftClickTouch);
+
+			document.getElementById("appInfoTriggerPanelID").addEventListener("touchend", doStuff.do.bind(doStuff, "show_info_panel") );
+			doStuff.sub("map_drag", hideInfoPanel );
+			doStuff.sub("mouse_left_click_lng_lat", hideInfoPanel );
+
+			doStuff.sub("show_info_panel", showInfoPanel);
+		}
+
+		mouse_tooltip_dnt_props = {
+			"interval_seconds": 0.2,
+			"iteration_count": 20,
+			"callback": () => 
+				{
+					// logging.index('dnt callback');
+					mouse_tooltip_string = (mouse_tooltip_string.length > 7) ? "? ft" : "?" + mouse_tooltip_string;
+					setMouseTooltipText(mouse_tooltip_string);
+				},
+		};
+		mouse_tooltip_dnt = DoNTimesFactory(mouse_tooltip_dnt_props, logging.getChannelFunc("dnt"));
+
+		shadow_props = {	day_start_hour : shadow_day_start_hour,
+								shadowed_elements_class: "timedShadow",
+								box_shadow_blur_radius: box_shadow_blur_radius,
+								box_shadow_spread: box_shadow_spread,
+								box_shadow_x_offset_max: box_shadow_x_offset_max,
+								box_shadow_y_offset_max: box_shadow_y_offset_max,
+								box_shadow_y_offset_min: box_shadow_y_offset_min,
+								update_interval_minutes: shadow_update_interval_minutes,
+		};
+		shadow_time = ShadowTimeFactory(shadow_props, logging.getChannelFunc("shadow"));
+		shadow_time.start();
+	}
+
+	// ----------------------------------------------------------------------------
+	async function initMap() 
+	{
+		const { Map } = await google.maps.importLibrary("maps");
+		const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
+
+		const center_lng = -96.0;
+		const center_lat = 39;
+
+		// const map = new google.maps.Map(document.getElementById("map"), {
+		Gmap = new google.maps.Map(document.getElementById("map"), {
+			zoom: 5,
+			center: { lat: center_lat, lng: center_lng },
+			mapTypeId: "terrain",
+			mapId: "215ecb8fe58153d6",
+		});
+
+		Gmap.setOptions({draggableCursor:'crosshair'});
+
+		// set listener for clicks
+		Gmap.addListener("click", (mapsMouseEvent) => {
+			// logging.index("map mouse click");
+			doStuff.do("mouse_left_click_lng_lat", {"lng":mapsMouseEvent.latLng.lng(), "lat":mapsMouseEvent.latLng.lat()});
+		});
+
+		Gmap.addListener("drag", (mapsMouseEvent) => { 
+			// logging.index("map drag");
+			// mouse_at_rest = false;
+			// hideMouseToolTip();
+			// setCoordsPanel(getCoordsPanelIdleText());
+			doStuff.do("map_drag");
+		});
+
+		// non-touch events
+		if (!is_touch_device)
+		{
+			// set listener for mouse move
+			Gmap.addListener("mousemove", (mapsMouseEvent) => {
+				doStuff.do("mouse_move_lng_lat", {"lng":mapsMouseEvent.latLng.lng(), "lat":mapsMouseEvent.latLng.lat()});
+			});
+
+			// right clicks
+			google.maps.event.addListener(Gmap, "rightclick", function(event) {
+				var lat = event.latLng.lat();
+				var lng = event.latLng.lng();
+				doStuff.do("mouse_right_click_lng_lat", {lng, lat} );
+			});
+
+			Gmap.addListener("mouseout", (mapsMouseEvent) => {
+				logging.mouse("map mouseout");
+				clearMouseStillTimeout();
+				setCoordsPanel(getCoordsPanelIdleText());
+			});
+		}
+	}
+
+	// =========================================================================
+	// document ready
+	document.addEventListener('DOMContentLoaded', function() {
+		// console.log('DOM ready');
+		initApp();
+	});
+
+	// =========================================================================
+	// plumb things
+	// =========================================================================
+	window.initMap = initMap;
+
+</script>
+
+	<div id="mouseTooltipId" class="timedShadow">? ft</div>
+
+	<!-- <div id="instructionsPanelID" class="panelClass">This is the instructions panel</div> -->
+	<div id="currentCoordsPanelID" class="panelClass timedShadow">Current coords</div>
+
+	<div id="appInfoTriggerPanelID" class="panelClass timedShadow">
+		<img id="appInfoTriggerImgID" src="{{url_for('static', filename='favicon.ico')}}">
+	</div>
+
+	<div id="appInfoTextPanelID" class="panelClass timedShadow">
+		<h2>Casual Topographic</h2>
+		<span>By: Bruce Cooner</span>
+		<span>Notes:</span>
+		<ul>
+			<span>North America only</span>
+		</ul>
+		<span>Resources:</span>
+		<ul>
+			<li><a href="https://www.usgs.gov/" target="_blank">U.S. Geological Survey</a></li>
+			<li><a href="https://epqs.nationalmap.gov/v1/docs" target="_blank">USGS Elevation Point Query Service</a></li>
+			<li><a href="https://developers.google.com/maps" target="_blank">Google Maps Platform</a></li>
+		</ul>
+	</div>
+
+
+   <div id="map"></div>
+
+   <!-- 
+   The `defer` attribute causes the script to execute after the full HTML
+   document has been parsed. For non-blocking uses, avoiding race conditions,
+   and consistent behavior across browsers, consider loading using Promises. See
+   https://developers.google.com/maps/documentation/javascript/load-maps-js-api
+   for more information.
+   -->
+
+    <script
+      src="https://maps.googleapis.com/maps/api/js?key={{maps_api_key}}&callback=initMap&v=weekly"
+      defer
+    ></script>
+
+
+
+</body>
+</html>
