@@ -1,4 +1,5 @@
 set_keys.bat
+*.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
