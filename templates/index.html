@@ -5,6 +5,7 @@
 	<link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
 	<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='CSS/index.css') }}">
 
+	<script src="{{url_for('static', filename='js/MapLines.js')}}"></script>
 	<script src="{{url_for('static', filename='js/LogChannels.js')}}"></script>
 	<script src="{{url_for('static', filename='js/DoStuff.js')}}"></script>
 	<script src="{{url_for('static', filename='js/util.js')}}"></script>
@@ -46,6 +47,8 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	const COORDS_PANEL_INITIAL_TEXT = 'hover over a location to see elevation';
 	const COORDS_PANEL_INITIAL_TEXT_TOUCH = "touch a location to see elevation";
 
+	const MAX_POINTS_COUNT = 10;
+
 	const shadow_day_start_hour = 4;
 	const shadow_update_interval_minutes = 1;
 
@@ -74,6 +77,9 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	let mouse_tooltip_string = "";
 	let mouse_tooltip_dnt = null;
 
+	// only created when needed
+	let map_lines = null;
+
 	// google map instance
 	gMap = null;
 
@@ -81,12 +87,14 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// make the things
 	// =========================================================================
 	// logging system
-	var logging = LogChannelsNS.LogChannels(initialEnabled=false);
+	var logging = LogChannelsNS.LogChannels(initialEnabled=true);
 	logging.addChannel("index", {"name_prefix_enabled":true });
-	logging.addChannel("DoStuff", {"name_prefix_enabled":true });
+	// I really need a way to filter logs on channels...
+	logging.addChannel("DoStuff", {"name_prefix_enabled":true, "enabled":false });
 	logging.addChannel("mouse", {"name_prefix_enabled":true, "enabled":false });
 	logging.addChannel("dnt", {"name_prefix_enabled": false, "enabled":false});
 	logging.addChannel("shadow", {"name_prefix_enabled": true, "enabled":false});
+	logging.addChannel("maplines", {"name_prefix_enabled": true, "enabled":true});
 
 	// event system
 	var doStuff = DoStuffNS.DoStuff(logging.DoStuff, true);
@@ -273,6 +281,16 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// }
 
 	// ----------------------------------------------------------------------------
+	// non-touch devices
+	function handleMouseMapLeftClick(lng_lat_object)
+	{
+		if (map_lines)
+		{
+			map_lines.addPoint(lng_lat_object);
+		}
+	}
+
+	// ----------------------------------------------------------------------------
 	function handleMouseMapLeftClickTouch(lng_lat_object)
 	{
 		// logging.index("handleMouseMapLeftClickTouch()");
@@ -397,6 +415,33 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		setCoordsPanel(getCoordsPanelIdleText());
 	}
 
+
+	// ----------------------------------------------------------------------------
+	function setLinesModeButtonText(line_mode)
+	{
+		document.getElementById("linesModeButton").innerHTML = `Lines: ${line_mode ? "ON" : "OFF"}`;
+	}
+
+	// ----------------------------------------------------------------------------
+	function toggleLinesMode()
+	{
+		logging.index("toggleLinesMode()");
+
+		if (!map_lines)
+		{
+			map_lines = MapLinesNS.MapLines(logging.getChannelFunc("maplines"), gMap, MAX_POINTS_COUNT);
+
+			doStuff.sub("mouse_left_click_lng_lat", handleMouseMapLeftClick);
+
+		}
+		else
+		{
+			map_lines = null;
+		}
+
+		setLinesModeButtonText(!!map_lines);
+	}
+
 	// ----------------------------------------------------------------------------
 	function initApp()
 	{
@@ -475,12 +520,19 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 			mapId: "215ecb8fe58153d6",
 		});
 
+		// save for later
+		gMap = Gmap;
+
 		Gmap.setOptions({draggableCursor:'crosshair'});
 
 		// set listener for clicks
 		Gmap.addListener("click", (mapsMouseEvent) => {
 			// logging.index("map mouse click");
-			doStuff.do("mouse_left_click_lng_lat", {"lng":mapsMouseEvent.latLng.lng(), "lat":mapsMouseEvent.latLng.lat()});
+			// doStuff.do("mouse_left_click_lng_lat", {"lng":mapsMouseEvent.latLng.lng(), "lat":mapsMouseEvent.latLng.lat()});
+			if (map_lines)
+			{
+				map_lines.addPoint(mapsMouseEvent);
+			}
 		});
 
 		Gmap.addListener("drag", (mapsMouseEvent) => { 
@@ -552,6 +604,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		</ul>
 	</div>
 
+	<button id="linesModeButton" onclick="toggleLinesMode()">Lines: OFF</button>
 
    <div id="map"></div>
 
