@@ -55,6 +55,15 @@ var MapLinesNS = {
 			}
 		}
 
+		// ----------------------------------------------------------------------
+		this.shutDown = function()
+		{
+			this.poly_line.setMap(null);
+			this.poly_line = null;
+		}
+
+		// ----------------------------------------------------------------------
+
 		this.poly_line = this.makeMapPath(google_map);
 
 		this.log("MapLines constructed");
