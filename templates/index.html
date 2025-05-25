@@ -6,6 +6,7 @@
 	<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='CSS/index.css') }}">
 
 	<script src="{{url_for('static', filename='js/MapLines.js')}}"></script>
+	<script src="{{url_for('static', filename='js/MapLinesCanvasRender.js')}}"></script>
 	<script src="{{url_for('static', filename='js/LogChannels.js')}}"></script>
 	<script src="{{url_for('static', filename='js/DoStuff.js')}}"></script>
 	<script src="{{url_for('static', filename='js/util.js')}}"></script>
@@ -38,6 +39,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		"map_drag",
 		"show_info_panel",
 		"hide_info_panel",
+		"render_lines_profile",
 	];
 
 	const DISPLAY_PRECISION = 5;
@@ -47,7 +49,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	const COORDS_PANEL_INITIAL_TEXT = 'hover over a location to see elevation';
 	const COORDS_PANEL_INITIAL_TEXT_TOUCH = "touch a location to see elevation";
 
-	const MAX_POINTS_COUNT = 10;
+	const MAX_POINTS_COUNT = 50;
 
 	const shadow_day_start_hour = 4;
 	const shadow_update_interval_minutes = 1;
@@ -94,7 +96,8 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	logging.addChannel("mouse", {"name_prefix_enabled":true, "enabled":false });
 	logging.addChannel("dnt", {"name_prefix_enabled": false, "enabled":false});
 	logging.addChannel("shadow", {"name_prefix_enabled": true, "enabled":false});
-	logging.addChannel("maplines", {"name_prefix_enabled": true, "enabled":true});
+	logging.addChannel("maplines", {"name_prefix_enabled": true, "enabled":true, "trace_output_enabled":true});
+	logging.addChannel("render", {"name_prefix_enabled": true, "enabled":true, "trace_output_enabled":true});
 
 	// event system
 	var doStuff = DoStuffNS.DoStuff(logging.DoStuff, true);
@@ -423,21 +426,54 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	}
 
 	// ----------------------------------------------------------------------------
+	function createCanvas(canvas_id, canvas_class, parent_element)
+	{
+		let new_canvas = document.createElement("canvas");
+		new_canvas.id = canvas_id;
+		new_canvas.classList.add(canvas_class);
+		new_canvas.id = canvas_id;
+
+		new_canvas.width = parent_element.clientWidth;
+		new_canvas.height = parent_element.clientHeight;
+
+		parent_element.append(new_canvas);
+
+		parent_element.append(new_canvas);
+
+		return new_canvas;
+	}
+
+	// ----------------------------------------------------------------------------
 	function toggleLinesMode()
 	{
 		logging.index("toggleLinesMode()");
 
 		if (!map_lines)
 		{
-			map_lines = MapLinesNS.MapLines(logging.getChannelFunc("maplines"), gMap, MAX_POINTS_COUNT);
+			// TODO: find a way to hook mouse clicks using the sub/pub system, which requires passing along google map events which I don't do yet
 
-			doStuff.sub("mouse_left_click_lng_lat", handleMouseMapLeftClick);
+			// create lines
+			map_lines = MapLinesNS.MapLines(logging.getChannelFunc("maplines"), gMap, MAX_POINTS_COUNT, getElevation);
 
+			// create canvas
+			const canvas_parent = document.getElementById("linesCanvasDivId");
+			new_canvas = createCanvas("linesCanvasId", "dynamicCanvas", canvas_parent);
+
+			// create renderer
+			map_lines_canvas_render = MapLinesCanvasRenderNS.MapLinesCanvasRender(logging.getChannelFunc("render"), new_canvas);
+
+			// hook renderer to lines
+			map_lines.render_callback = map_lines_canvas_render.render.bind(map_lines_canvas_render);
 		}
 		else
 		{
+			map_lines_canvas_render = null;
+
 			map_lines.shutDown();
 			map_lines = null;
+
+			var canvas_element = document.getElementById("linesCanvasId");
+			canvas_element.parentNode.removeChild(canvas_element);
 		}
 
 		setLinesModeButtonText(!!map_lines);
@@ -608,6 +644,9 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	<button id="linesModeButton" onclick="toggleLinesMode()">Lines: OFF</button>
 
    <div id="map"></div>
+
+	<div id="linesCanvasDivId"></div>
+
 
    <!-- 
    The `defer` attribute causes the script to execute after the full HTML
