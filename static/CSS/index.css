@@ -107,6 +107,10 @@ body {
 	box-shadow: var(--panel-shadow);
 }
 
+.linesModeElementClass {
+	display: none;
+}
+
 #linesModeButton {
 	position: absolute;
 	left: 10px;

@@ -60,11 +60,12 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	const box_shadow_blur_radius = 2;
 	const box_shadow_spread = 1;
 
-	let shadow_time = null;
 
 	// =========================================================================
 	// variables
 	// =========================================================================
+	let lines_mode_feature = false;
+	let shadow_time = null;
 	let elevation_at_mouse_pointer = null;
 
 	let mouse_pointer_still_timeout_id = null;
@@ -482,9 +483,29 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// ----------------------------------------------------------------------------
 	function initApp()
 	{
+		// ----- investigate query params -----
+		const queryString = window.location.search;
+		logging.index("queryString:" + queryString);
+
+		const urlParams = new URLSearchParams(queryString);
+		const lines_mode_feature = urlParams.has("lines_mode");
+		logging.index("lines_mode_feature: " + lines_mode_feature);
+
+		// ---- layout init -----
+		if (lines_mode_feature)
+		{
+			const line_mode_feature_elements = document.getElementsByClassName("linesModeElementClass");
+			for (let i = 0; i < line_mode_feature_elements.length; i++)
+			{
+				const cur_elem = line_mode_feature_elements[i];
+				cur_elem.style.display = "inherit";
+			}
+		}
+
 		mouse_tooltip_element = document.getElementById("mouseTooltipId");
 		setCoordsPanel(getCoordsPanelIdleText());
 
+		// ----- event plumbing -----
 		doStuff.sub("map_drag", handleMapDrag );
 
 		// mouse move handler (on body, not map)
@@ -641,11 +662,11 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		</ul>
 	</div>
 
-	<button id="linesModeButton" onclick="toggleLinesMode()">Lines: OFF</button>
 
    <div id="map"></div>
 
-	<div id="linesCanvasDivId"></div>
+	<button id="linesModeButton" class="linesModeElementClass" onclick="toggleLinesMode()">Lines: OFF</button>
+	<div id="linesCanvasDivId" class="linesModeElementClass"></div>
 
 
    <!-- 
