@@ -5,8 +5,10 @@
 	<link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
 	<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='CSS/index.css') }}">
 
+	<script src="{{url_for('static', filename='js/SVGee.js')}}"></script>
+
 	<script src="{{url_for('static', filename='js/MapLines.js')}}"></script>
-	<script src="{{url_for('static', filename='js/MapLinesCanvasRender.js')}}"></script>
+	<script src="{{url_for('static', filename='js/MapLinesSVGRender.js')}}"></script>
 	<script src="{{url_for('static', filename='js/LogChannels.js')}}"></script>
 	<script src="{{url_for('static', filename='js/DoStuff.js')}}"></script>
 	<script src="{{url_for('static', filename='js/util.js')}}"></script>
@@ -97,11 +99,15 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	logging.addChannel("mouse", {"name_prefix_enabled":true, "enabled":false });
 	logging.addChannel("dnt", {"name_prefix_enabled": false, "enabled":false});
 	logging.addChannel("shadow", {"name_prefix_enabled": true, "enabled":false});
-	logging.addChannel("maplines", {"name_prefix_enabled": true, "enabled":true, "trace_output_enabled":true});
-	logging.addChannel("render", {"name_prefix_enabled": true, "enabled":true, "trace_output_enabled":true});
+	logging.addChannel("maplines", {"name_prefix_enabled": true, "enabled":true });
+	logging.addChannel("render", {"name_prefix_enabled": true, "enabled":true });
+	logging.addChannel("SVGee", {"name_prefix_enabled": true, "enabled":true });
 
 	// event system
 	var doStuff = DoStuffNS.DoStuff(logging.DoStuff, true);
+
+	// svgee
+	var svgee = SVGeeNS.SVGee(logging.SVGee);
 
 	// TODO: enumerate event names somewhere ?
 	app_events.forEach(cur_event => {
@@ -439,9 +445,25 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 		parent_element.append(new_canvas);
 
-		parent_element.append(new_canvas);
-
 		return new_canvas;
+	}
+
+	// ----------------------------------------------------------------------------
+	function handleSVG(svg_text)
+	{
+		logging.index("handleSVG()");
+
+		const svg_parent = document.getElementById("linesCanvasDivId");
+		const svg_element = document.getElementById("default_svg_id");
+
+		if (svg_element)
+		{
+			svg_parent.removeChild(svg_element);
+		}
+
+		// logging.index(svg_text);
+		const svg_node = document.createRange().createContextualFragment(svg_text);
+		svg_parent.appendChild(svg_node);
 	}
 
 	// ----------------------------------------------------------------------------
@@ -451,30 +473,44 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 		if (!map_lines)
 		{
+			const svg_parent = document.getElementById("linesCanvasDivId");
 			// TODO: find a way to hook mouse clicks using the sub/pub system, which requires passing along google map events which I don't do yet
 
 			// create lines
 			map_lines = MapLinesNS.MapLines(logging.getChannelFunc("maplines"), gMap, MAX_POINTS_COUNT, getElevation);
 
-			// create canvas
-			const canvas_parent = document.getElementById("linesCanvasDivId");
-			new_canvas = createCanvas("linesCanvasId", "dynamicCanvas", canvas_parent);
-
 			// create renderer
-			map_lines_canvas_render = MapLinesCanvasRenderNS.MapLinesCanvasRender(logging.getChannelFunc("render"), new_canvas);
+			map_lines_svg_render = MapLinesSVGRenderNS.MapLinesSVGRender(	logging.getChannelFunc("render"),
+																								svg_parent.clientWidth,
+																								svg_parent.clientHeight,
+																								svgee,
+																								handleSVG);
+
+			// test svg
+			// svgee.new(svg_parent.clientWidth, svg_parent.clientHeight);
+			// svgee.appendNode(svgee.line(0,0,200,200));
+			// const the_svg = svgee.generateSVG();
+			// const svg_node = document.createRange().createContextualFragment(the_svg);
+			// svg_parent.appendChild(svg_node);
+
+			console.log("appended");
 
 			// hook renderer to lines
-			map_lines.render_callback = map_lines_canvas_render.render.bind(map_lines_canvas_render);
+			map_lines.render_callback = map_lines_svg_render.render.bind(map_lines_svg_render);
 		}
 		else
 		{
-			map_lines_canvas_render = null;
+			const svg_parent = document.getElementById("linesCanvasDivId");
+			const svg_element = document.getElementById("default_svg_id");
+			if (svg_element)
+			{
+				svg_parent.removeChild(svg_element);
+			}
+
+			map_lines_svg_render = null;
 
 			map_lines.shutDown();
 			map_lines = null;
-
-			var canvas_element = document.getElementById("linesCanvasId");
-			canvas_element.parentNode.removeChild(canvas_element);
 		}
 
 		setLinesModeButtonText(!!map_lines);
@@ -666,7 +702,24 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
    <div id="map"></div>
 
 	<button id="linesModeButton" class="linesModeElementClass" onclick="toggleLinesMode()">Lines: OFF</button>
-	<div id="linesCanvasDivId" class="linesModeElementClass"></div>
+	<div id="linesCanvasDivId" class="linesModeElementClass">
+
+<!-- <svg
+width="200"
+height="200"
+viewBox="0 0 200 200"
+xmlns="http://www.w3.org/2000/svg"
+>
+  <line
+  x1="0"
+  y1="0"
+  x2="50"
+  y2="50"
+  stroke="rgb(0,0,0)"
+  stroke-width="1"
+></line></svg> -->
+
+	</div>
 
 
    <!-- 
