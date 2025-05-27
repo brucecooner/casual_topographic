@@ -23,7 +23,7 @@
 	// -------------------------------------------------------------------------
 	function getEPQSUrl(lng, lat)
 	{
-		return `https://epqs.nationalmap.gov/v1/json?x=${lng}&y=${lat}&units=Feet`;
+		return `https://epqs.nationalmap.gov/v1/json?x=${lng}&y=${lat}&units=Meters`;
 	}
 
 	// -------------------------------------------------------------------------

@@ -107,17 +107,26 @@ body {
 	box-shadow: var(--panel-shadow);
 }
 
+#optionsPanelId {
+	position: absolute;
+	left: 10px;
+	top: 25%;
+	z-index: 2;
+	margin: 5px;
+	padding: 5px;
+}
+
 .linesModeElementClass {
 	display: none;
 }
 
-#linesModeButton {
+/* #linesModeButton {
 	position: absolute;
 	left: 10px;
 	top: 50%;
 
 	z-index: 2;
-}
+} */
 
 #linesCanvasDivId {
 	position: absolute;

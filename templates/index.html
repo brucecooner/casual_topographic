@@ -7,6 +7,7 @@
 
 	<script src="{{url_for('static', filename='js/SVGee.js')}}"></script>
 
+	<script src="{{url_for('static', filename='js/ElevationValue.js')}}"></script>
 	<script src="{{url_for('static', filename='js/MapLines.js')}}"></script>
 	<script src="{{url_for('static', filename='js/MapLinesSVGRender.js')}}"></script>
 	<script src="{{url_for('static', filename='js/LogChannels.js')}}"></script>
@@ -28,6 +29,15 @@
 maps events demo: https://developers.google.com/maps/documentation/javascript/app_events 
 -->
 
+<!-- 
+	TODO:
+		-global config object
+		-config -> local storage
+
+	KNOWN BUGS:
+		-can't activate info panel on touch?
+ -->
+
 <body>
 
 <script>
@@ -42,6 +52,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		"show_info_panel",
 		"hide_info_panel",
 		"render_lines_profile",
+		"toggle_elevation_units",
 	];
 
 	const DISPLAY_PRECISION = 5;
@@ -66,12 +77,15 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// =========================================================================
 	// variables
 	// =========================================================================
+	// intended to be ElevationValue
+	let elevation_at_mouse_pointer = ElevationValueNS.ElevationValue();
+
+	// config
+	let mouse_pointer_still_timeout_id = null;
 	let lines_mode_feature = false;
 	let shadow_time = null;
-	let elevation_at_mouse_pointer = null;
 
-	let mouse_pointer_still_timeout_id = null;
-
+	// mouse stuff
 	let mouse_pointer_lng_lat = null;	// becomes {lng, lat}
 
 	let mouse_tooltip_element = null;
@@ -206,15 +220,17 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	{
 		mouse_at_rest = true;
 
-		mouse_tooltip_string = '? ft';	// TODO: magic string
+		mouse_tooltip_string = '?';	// TODO: magic string
 		mouse_tooltip_dnt.start();
 		setMouseToolTip(mouse_x, mouse_y, mouse_tooltip_string);
 
-		getElevation(mouse_pointer_lng_lat).then(elevation => {
+		getElevation(mouse_pointer_lng_lat).then(elevation_meters => {
 			mouse_tooltip_dnt.stop();
 			if (mouse_at_rest)
 			{
-				setMouseToolTip(mouse_x, mouse_y, `${toPrecision(elevation, DISPLAY_PRECISION)}`);
+				elevation_at_mouse_pointer.setElevationMeters(elevation_meters);
+
+				setMouseToolTip(mouse_x, mouse_y, `${toPrecision(elevation_at_mouse_pointer.elevation, DISPLAY_PRECISION)} ${elevation_at_mouse_pointer.units_short}`);
 			}
 		}).catch(err => {
 			console.error(err);
@@ -307,14 +323,16 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 		setCoordsPanel(lng_lat_object);
 
-		mouse_tooltip_string = '? ft';	// TODO: magic string
+		mouse_tooltip_string = '?';	// TODO: magic string
 		mouse_tooltip_dnt.start();
 		setMouseToolTip(touch_mouse_x, touch_mouse_y, mouse_tooltip_string);
 
-		getElevation(lng_lat_object).then(elevation => {
+		getElevation(lng_lat_object).then(elevation_meters => {
 			mouse_tooltip_dnt.stop();
 
-			setMouseToolTip(touch_mouse_x, touch_mouse_y, `${toPrecision(elevation, DISPLAY_PRECISION)}`);
+			elevation_at_mouse_pointer.setElevationMeters(elevation_meters);
+
+			setMouseToolTip(touch_mouse_x, touch_mouse_y, `${toPrecision(elevation_at_mouse_pointer.elevation, DISPLAY_PRECISION)} ${elevation_at_mouse_pointer.units_short}`);
 		}).catch(err => {
 			console.error(err);
 			// setMouseToolTip(mouse_x, mouse_y, `:( ${err}`);
@@ -433,6 +451,12 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	}
 
 	// ----------------------------------------------------------------------------
+	function setUnitsButtonText(new_text)
+	{
+		document.getElementById("toggleUnitsButtonId").innerHTML = "Units: " + new_text;
+	}
+
+	// ----------------------------------------------------------------------------
 	function createCanvas(canvas_id, canvas_class, parent_element)
 	{
 		let new_canvas = document.createElement("canvas");
@@ -464,6 +488,29 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		// logging.index(svg_text);
 		const svg_node = document.createRange().createContextualFragment(svg_text);
 		svg_parent.appendChild(svg_node);
+	}
+
+	// ----------------------------------------------------------------------------
+	function toggleElevationUnits()
+	{
+		let elevation_units_type = "";
+
+		switch (elevation_at_mouse_pointer.units)
+		{
+			case ElevationValueNS.UNIT_TYPE_METERS:
+				elevation_units_type = ElevationValueNS.UNIT_TYPE_FEET;
+				break;
+			case ElevationValueNS.UNIT_TYPE_FEET:
+				elevation_units_type = ElevationValueNS.UNIT_TYPE_METERS;
+				break;
+			default:
+				const err = `Unknown elevation_units_type: ${elevation_units_type}`;
+				throw new Error(err);
+		}
+
+		elevation_at_mouse_pointer.setUnits(elevation_units_type);
+		setUnitsButtonText(elevation_units_type);
+		setMouseTooltipText(`${toPrecision(elevation_at_mouse_pointer.elevation, DISPLAY_PRECISION)} ${elevation_at_mouse_pointer.units_short}`);
 	}
 
 	// ----------------------------------------------------------------------------
@@ -528,6 +575,8 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		logging.index("lines_mode_feature: " + lines_mode_feature);
 
 		// ---- layout init -----
+		setUnitsButtonText(elevation_at_mouse_pointer.units);
+
 		if (lines_mode_feature)
 		{
 			const line_mode_feature_elements = document.getElementsByClassName("linesModeElementClass");
@@ -543,6 +592,8 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 		// ----- event plumbing -----
 		doStuff.sub("map_drag", handleMapDrag );
+		doStuff.sub("toggle_elevation_units", toggleElevationUnits);
+
 
 		// mouse move handler (on body, not map)
 		if (!is_touch_device)
@@ -578,7 +629,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 			"callback": () => 
 				{
 					// logging.index('dnt callback');
-					mouse_tooltip_string = (mouse_tooltip_string.length > 7) ? "? ft" : "?" + mouse_tooltip_string;
+					mouse_tooltip_string = (mouse_tooltip_string.length > 7) ? "?" : "?" + mouse_tooltip_string;
 					setMouseTooltipText(mouse_tooltip_string);
 				},
 		};
@@ -674,7 +725,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 </script>
 
-	<div id="mouseTooltipId" class="timedShadow">? ft</div>
+	<div id="mouseTooltipId" class="timedShadow">?</div>
 
 	<!-- <div id="instructionsPanelID" class="panelClass">This is the instructions panel</div> -->
 	<div id="currentCoordsPanelID" class="panelClass timedShadow">Current coords</div>
@@ -701,24 +752,12 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
    <div id="map"></div>
 
-	<button id="linesModeButton" class="linesModeElementClass" onclick="toggleLinesMode()">Lines: OFF</button>
+	<div id="optionsPanelId" class="panelClass">
+		<button id="toggleUnitsButtonId" onclick="doStuff.do('toggle_elevation_units')">Units: Meters</button>
+		<button id="linesModeButton" class="linesModeElementClass" onclick="toggleLinesMode()">Lines: OFF</button>
+	</div>
+
 	<div id="linesCanvasDivId" class="linesModeElementClass">
-
-<!-- <svg
-width="200"
-height="200"
-viewBox="0 0 200 200"
-xmlns="http://www.w3.org/2000/svg"
->
-  <line
-  x1="0"
-  y1="0"
-  x2="50"
-  y2="50"
-  stroke="rgb(0,0,0)"
-  stroke-width="1"
-></line></svg> -->
-
 	</div>
 
 
