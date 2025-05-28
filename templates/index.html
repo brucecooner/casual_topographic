@@ -8,8 +8,12 @@
 	<script src="{{url_for('static', filename='js/SVGee.js')}}"></script>
 
 	<script src="{{url_for('static', filename='js/ElevationValue.js')}}"></script>
-	<script src="{{url_for('static', filename='js/MapLines.js')}}"></script>
-	<script src="{{url_for('static', filename='js/MapLinesSVGRender.js')}}"></script>
+
+	<script src="{{url_for('static', filename='js/Waypoint.js')}}"></script>
+
+	<!-- <script src="{{url_for('static', filename='js/MapLines.js')}}"></script>
+	<script src="{{url_for('static', filename='js/MapLinesSVGRender.js')}}"></script> -->
+
 	<script src="{{url_for('static', filename='js/LogChannels.js')}}"></script>
 	<script src="{{url_for('static', filename='js/DoStuff.js')}}"></script>
 	<script src="{{url_for('static', filename='js/util.js')}}"></script>
@@ -81,26 +85,27 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	let elevation_at_mouse_pointer = ElevationValueNS.ElevationValue();
 
 	// config
-	let mouse_pointer_still_timeout_id = null;
+	let mouse_pointer_still_timeout_id = undefined;
 	let lines_mode_feature = false;
-	let shadow_time = null;
+	let shadow_time = undefined;
 
 	// mouse stuff
-	let mouse_pointer_lng_lat = null;	// becomes {lng, lat}
+	let mouse_pointer_lng_lat = undefined;	// becomes {lng, lat}
 
-	let mouse_tooltip_element = null;
+	let mouse_tooltip_element = undefined;
 	let mouse_x = 0;
 	let mouse_y = 0;
 	let mouse_at_rest = false;
 
 	let mouse_tooltip_string = "";
-	let mouse_tooltip_dnt = null;
+	let mouse_tooltip_dnt = undefined;
 
 	// only created when needed
-	let map_lines = null;
+	// TODO: make poly line renderer!
+	let waypoints = null;
 
 	// google map instance
-	gMap = null;
+	gMap = undefined;
 
 	// =========================================================================
 	// make the things
@@ -113,7 +118,6 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	logging.addChannel("mouse",		{"enabled":false });
 	logging.addChannel("dnt",			{"enabled":false});
 	logging.addChannel("shadow",		{"enabled":false});
-	logging.addChannel("maplines",	{"enabled":true });
 	logging.addChannel("render",		{"enabled":true });
 	logging.addChannel("SVGee",		{"enabled":true });
 
@@ -310,13 +314,16 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// non-touch devices
 	function handleMouseMapLeftClick(lng_lat_object)
 	{
-		if (map_lines)
+		logging.index.log("handleMouseMapLeftClick():", lng_lat_object);
+		if (waypoints)
 		{
-			map_lines.addPoint(lng_lat_object);
+			const new_waypoint = new WaypointNS.Waypoint(lat = lng_lat_object.lat, lng = lng_lat_object.lng, 0);
+			waypoints.push(new_waypoint);
 		}
 	}
 
 	// ----------------------------------------------------------------------------
+	// touch devices
 	function handleMouseMapLeftClickTouch(lng_lat_object)
 	{
 		// logging.index.log("handleMouseMapLeftClickTouch()");
@@ -445,9 +452,9 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 
 	// ----------------------------------------------------------------------------
-	function setLinesModeButtonText(line_mode)
+	function setWaypointsModeButtonText(line_mode)
 	{
-		document.getElementById("linesModeButton").innerHTML = `Lines: ${line_mode ? "ON" : "OFF"}`;
+		document.getElementById("waypointsModeButtonId").innerHTML = `Waypoints: ${line_mode ? "ON" : "OFF"}`;
 	}
 
 	// ----------------------------------------------------------------------------
@@ -514,24 +521,28 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	}
 
 	// ----------------------------------------------------------------------------
-	function toggleLinesMode()
+	function toggleWaypointsMode()
 	{
-		logging.index.log("toggleLinesMode()");
+		logging.index.log("toggleWaypointsMode()");
 
-		if (!map_lines)
+		if (!waypoints)
 		{
+			logging.index.log("waypoints on");
+
 			const svg_parent = document.getElementById("linesCanvasDivId");
 			// TODO: find a way to hook mouse clicks using the sub/pub system, which requires passing along google map events which I don't do yet
 
+			waypoints = [];
+
 			// create lines
-			map_lines = MapLinesNS.MapLines(logging.maplines.log, gMap, MAX_POINTS_COUNT, getElevation);
+			// map_lines = MapLinesNS.MapLines(logging.maplines.log, gMap, MAX_POINTS_COUNT, getElevation);
 
 			// create renderer
-			map_lines_svg_render = MapLinesSVGRenderNS.MapLinesSVGRender(	logging.render.log,
-																								svg_parent.clientWidth,
-																								svg_parent.clientHeight,
-																								svgee,
-																								handleSVG);
+			// map_lines_svg_render = MapLinesSVGRenderNS.MapLinesSVGRender(	logging.render.log,
+			// 																					svg_parent.clientWidth,
+			// 																					svg_parent.clientHeight,
+			// 																					svgee,
+			// 																					handleSVG);
 
 			// test svg
 			// svgee.new(svg_parent.clientWidth, svg_parent.clientHeight);
@@ -540,13 +551,13 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 			// const svg_node = document.createRange().createContextualFragment(the_svg);
 			// svg_parent.appendChild(svg_node);
 
-			console.log("appended");
-
 			// hook renderer to lines
-			map_lines.render_callback = map_lines_svg_render.render.bind(map_lines_svg_render);
+			// map_lines.render_callback = map_lines_svg_render.render.bind(map_lines_svg_render);
 		}
 		else
 		{
+			logging.index.log("waypoints off");
+
 			const svg_parent = document.getElementById("linesCanvasDivId");
 			const svg_element = document.getElementById("default_svg_id");
 			if (svg_element)
@@ -554,13 +565,14 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 				svg_parent.removeChild(svg_element);
 			}
 
-			map_lines_svg_render = null;
+			// map_lines_svg_render = undefined;
 
-			map_lines.shutDown();
-			map_lines = null;
+			// map_lines.shutDown();
+			// map_lines = undefined;
+			waypoints = null;
 		}
 
-		setLinesModeButtonText(!!map_lines);
+		setWaypointsModeButtonText(!!waypoints);
 	}
 
 	// ----------------------------------------------------------------------------
@@ -571,18 +583,18 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		logging.index.log("queryString:" + queryString);
 
 		const urlParams = new URLSearchParams(queryString);
-		const lines_mode_feature = urlParams.has("lines_mode");
-		logging.index.log("lines_mode_feature: " + lines_mode_feature);
+		const waypoints_feature = urlParams.has("waypoints");
+		logging.index.log("waypoints: " + waypoints_feature);
 
 		// ---- layout init -----
 		setUnitsButtonText(elevation_at_mouse_pointer.units);
 
-		if (lines_mode_feature)
+		if (waypoints_feature)
 		{
-			const line_mode_feature_elements = document.getElementsByClassName("linesModeElementClass");
-			for (let i = 0; i < line_mode_feature_elements.length; i++)
+			const waypoints_feature_elements = document.getElementsByClassName("waypointsElementClass");
+			for (let i = 0; i < waypoints_feature_elements.length; i++)
 			{
-				const cur_elem = line_mode_feature_elements[i];
+				const cur_elem = waypoints_feature_elements[i];
 				cur_elem.style.display = "inherit";
 			}
 		}
@@ -607,6 +619,8 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 			doStuff.sub("show_info_panel", showInfoPanel);
 			doStuff.sub("hide_info_panel", hideInfoPanel);
+
+			doStuff.sub("mouse_left_click_lng_lat", handleMouseMapLeftClick);
 		}
 		else
 		{
@@ -673,11 +687,11 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		// set listener for clicks
 		Gmap.addListener("click", (mapsMouseEvent) => {
 			// logging.index.log("map mouse click");
-			// doStuff.do("mouse_left_click_lng_lat", {"lng":mapsMouseEvent.latLng.lng(), "lat":mapsMouseEvent.latLng.lat()});
-			if (map_lines)
-			{
-				map_lines.addPoint(mapsMouseEvent);
-			}
+			doStuff.do("mouse_left_click_lng_lat", {"lng":mapsMouseEvent.latLng.lng(), "lat":mapsMouseEvent.latLng.lat()});
+			// if (map_lines)
+			// {
+			// 	// map_lines.addPoint(mapsMouseEvent);
+			// }
 		});
 
 		Gmap.addListener("drag", (mapsMouseEvent) => { 
@@ -754,10 +768,10 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 	<div id="optionsPanelId" class="panelClass">
 		<button id="toggleUnitsButtonId" onclick="doStuff.do('toggle_elevation_units')">Units: Meters</button>
-		<button id="linesModeButton" class="linesModeElementClass" onclick="toggleLinesMode()">Lines: OFF</button>
+		<button id="waypointsModeButtonId" class="waypointsElementClass" onclick="toggleWaypointsMode()">Waypoints: OFF</button>
 	</div>
 
-	<div id="linesCanvasDivId" class="linesModeElementClass">
+	<div id="waypointsCanvasDivId" class="waypointsElementClass">
 	</div>
 
 
