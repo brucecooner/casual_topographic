@@ -109,19 +109,19 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	var logging = LogChannelsNS.LogChannels(initialEnabled=true);
 	logging.addChannel("index", {"name_prefix_enabled":true });
 	// I really need a way to filter logs on channels...
-	logging.addChannel("DoStuff", {"name_prefix_enabled":true, "enabled":false });
-	logging.addChannel("mouse", {"name_prefix_enabled":true, "enabled":false });
-	logging.addChannel("dnt", {"name_prefix_enabled": false, "enabled":false});
-	logging.addChannel("shadow", {"name_prefix_enabled": true, "enabled":false});
-	logging.addChannel("maplines", {"name_prefix_enabled": true, "enabled":true });
-	logging.addChannel("render", {"name_prefix_enabled": true, "enabled":true });
-	logging.addChannel("SVGee", {"name_prefix_enabled": true, "enabled":true });
+	logging.addChannel("DoStuff",		{"enabled":false });
+	logging.addChannel("mouse",		{"enabled":false });
+	logging.addChannel("dnt",			{"enabled":false});
+	logging.addChannel("shadow",		{"enabled":false});
+	logging.addChannel("maplines",	{"enabled":true });
+	logging.addChannel("render",		{"enabled":true });
+	logging.addChannel("SVGee",		{"enabled":true });
 
 	// event system
-	var doStuff = DoStuffNS.DoStuff(logging.DoStuff, true);
+	var doStuff = DoStuffNS.DoStuff(logging.DoStuff.log, true);
 
 	// svgee
-	var svgee = SVGeeNS.SVGee(logging.SVGee);
+	var svgee = SVGeeNS.SVGee(logging.SVGee.log);
 
 	// TODO: enumerate event names somewhere ?
 	app_events.forEach(cur_event => {
@@ -130,7 +130,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 	// touch stuff got whacked in
 	const is_touch_device = isTouchDevice();
-	logging.index("is_touch_device: ", is_touch_device);
+	logging.index.log("is_touch_device: ", is_touch_device);
 	let touch_mouse_x = 0;
 	let touch_mouse_y = 0;
 
@@ -156,7 +156,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// 		current_test_hour = 0;
 	// 	}
 
-	// 	logging.index("current test time ", current_test_hour, ":", current_test_minutes);
+	// 	logging.index.log("current test time ", current_test_hour, ":", current_test_minutes);
 
 	// 	// setShadowsToTime(current_test_hour, current_test_minutes, day_start_hour);
 	// 	shadow_time.setTime(current_test_hour, current_test_minutes);
@@ -254,19 +254,19 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// ----------------------------------------------------------------------------
 	function setMouseStillTimeout()
 	{
-		logging.mouse("setMouseStillTimeout()");
+		logging.mouse.log("setMouseStillTimeout()");
 		// clear previous
 		clearMouseStillTimeout();
 
 		mouse_pointer_still_timeout_id = setTimeout(mousePointerStillCallback, MOUSE_POINTER_STILL_ACTIVATION_TIME_MILLISECONDS);
 
-		logging.mouse("timeout set: ", mouse_pointer_still_timeout_id);
+		logging.mouse.log("timeout set: ", mouse_pointer_still_timeout_id);
 	}
 
 	// ----------------------------------------------------------------------------
 	function handleMapMouseMove(lng_lat_obj)
 	{
-		// logging.index("handleMapMouseMove()");
+		// logging.index.log("handleMapMouseMove()");
 
 		mouse_at_rest = false;
 
@@ -296,7 +296,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// -------------------------------------------------------------------------
 	// function handleMouseLeftClick(lng_lat_obj)
 	// {
-	// 	logging.index("h: mouse left click");
+	// 	logging.index.log("h: mouse left click");
 
 	// 	mouse_pointer_lng_lat = lng_lat_obj;
 
@@ -319,7 +319,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// ----------------------------------------------------------------------------
 	function handleMouseMapLeftClickTouch(lng_lat_object)
 	{
-		// logging.index("handleMouseMapLeftClickTouch()");
+		// logging.index.log("handleMouseMapLeftClickTouch()");
 
 		setCoordsPanel(lng_lat_object);
 
@@ -343,7 +343,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// ----------------------------------------------------------------------------
 	function handleDocMouseMove(mouse_evt)
 	{
-		logging.mouse("handleDocMouseMove()");
+		logging.mouse.log("handleDocMouseMove()");
 
 		// hack? Can't we get element from event?
 		const elems = document.getElementsByTagName("body");
@@ -353,7 +353,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		mouse_x = Math.max(0, Math.round(event.clientX - rect.left));
 		mouse_y = Math.max(0, Math.round(event.clientY - rect.top));
 
-		logging.mouse("mouse x: ", mouse_x, "  mouse y:", mouse_y);
+		logging.mouse.log("mouse x: ", mouse_x, "  mouse y:", mouse_y);
 	}
 
 	// ----------------------------------------------------------------------------
@@ -384,7 +384,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// ----------------------------------------------------------------------------
 	function showInfoPanel(evt)
 	{
-		logging.index("showInfoPanel()");
+		logging.index.log("showInfoPanel()");
 
 		document.getElementById("appInfoTextPanelID").style.visibility = "visible";
 		document.getElementById("appInfoTextPanelID").style.opacity = 1;
@@ -400,7 +400,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// ----------------------------------------------------------------------------
 	function handleTouchStart(event)
 	{
-		// logging.index("handleTouchStart()");
+		// logging.index.log("handleTouchStart()");
 
 		const elems = document.getElementsByTagName("body");
 		const rect = elems[0].getBoundingClientRect();
@@ -411,15 +411,15 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		touch_mouse_x = Math.max(0, Math.round(touch.clientX - rect.left));
 		touch_mouse_y = Math.max(0, Math.round(touch.clientY - rect.top));
 
-		logging.mouse("touch mouse x: ", touch_mouse_x, "  touch mouse y:", touch_mouse_y);
+		logging.mouse.log("touch mouse x: ", touch_mouse_x, "  touch mouse y:", touch_mouse_y);
 	}
 
 	// ----------------------------------------------------------------------------
 	function handleTouchEnd(event)
 	{
-		// logging.index("handleTouchEnd()");
+		// logging.index.log("handleTouchEnd()");
 
-		logging.index("touch event", event);
+		logging.index.log("touch event", event);
 
 		const elems = document.getElementsByTagName("body");
 		const rect = elems[0].getBoundingClientRect();
@@ -430,13 +430,13 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		touch_mouse_x = Math.max(0, Math.round(touch.clientX - rect.left));
 		touch_mouse_y = Math.max(0, Math.round(touch.clientY - rect.top));
 
-		logging.mouse("touch mouse x: ", touch_mouse_x, "  touch mouse y:", touch_mouse_y);
+		logging.mouse.log("touch mouse x: ", touch_mouse_x, "  touch mouse y:", touch_mouse_y);
 	}
 
 	// ----------------------------------------------------------------------------
 	function handleMapDrag(event)
 	{
-		logging.index("handleMapDrag()");
+		logging.index.log("handleMapDrag()");
 
 		mouse_at_rest = false;
 		hideMouseToolTip();
@@ -475,7 +475,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// ----------------------------------------------------------------------------
 	function handleSVG(svg_text)
 	{
-		logging.index("handleSVG()");
+		logging.index.log("handleSVG()");
 
 		const svg_parent = document.getElementById("linesCanvasDivId");
 		const svg_element = document.getElementById("default_svg_id");
@@ -485,7 +485,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 			svg_parent.removeChild(svg_element);
 		}
 
-		// logging.index(svg_text);
+		// logging.index.log(svg_text);
 		const svg_node = document.createRange().createContextualFragment(svg_text);
 		svg_parent.appendChild(svg_node);
 	}
@@ -516,7 +516,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// ----------------------------------------------------------------------------
 	function toggleLinesMode()
 	{
-		logging.index("toggleLinesMode()");
+		logging.index.log("toggleLinesMode()");
 
 		if (!map_lines)
 		{
@@ -524,10 +524,10 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 			// TODO: find a way to hook mouse clicks using the sub/pub system, which requires passing along google map events which I don't do yet
 
 			// create lines
-			map_lines = MapLinesNS.MapLines(logging.getChannelFunc("maplines"), gMap, MAX_POINTS_COUNT, getElevation);
+			map_lines = MapLinesNS.MapLines(logging.maplines.log, gMap, MAX_POINTS_COUNT, getElevation);
 
 			// create renderer
-			map_lines_svg_render = MapLinesSVGRenderNS.MapLinesSVGRender(	logging.getChannelFunc("render"),
+			map_lines_svg_render = MapLinesSVGRenderNS.MapLinesSVGRender(	logging.render.log,
 																								svg_parent.clientWidth,
 																								svg_parent.clientHeight,
 																								svgee,
@@ -568,11 +568,11 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	{
 		// ----- investigate query params -----
 		const queryString = window.location.search;
-		logging.index("queryString:" + queryString);
+		logging.index.log("queryString:" + queryString);
 
 		const urlParams = new URLSearchParams(queryString);
 		const lines_mode_feature = urlParams.has("lines_mode");
-		logging.index("lines_mode_feature: " + lines_mode_feature);
+		logging.index.log("lines_mode_feature: " + lines_mode_feature);
 
 		// ---- layout init -----
 		setUnitsButtonText(elevation_at_mouse_pointer.units);
@@ -628,12 +628,12 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 			"iteration_count": 20,
 			"callback": () => 
 				{
-					// logging.index('dnt callback');
+					// logging.index.log('dnt callback');
 					mouse_tooltip_string = (mouse_tooltip_string.length > 7) ? "?" : "?" + mouse_tooltip_string;
 					setMouseTooltipText(mouse_tooltip_string);
 				},
 		};
-		mouse_tooltip_dnt = DoNTimesFactory(mouse_tooltip_dnt_props, logging.getChannelFunc("dnt"));
+		mouse_tooltip_dnt = DoNTimesFactory(mouse_tooltip_dnt_props, logging.dnt.log);
 
 		shadow_props = {	day_start_hour : shadow_day_start_hour,
 								shadowed_elements_class: "timedShadow",
@@ -644,7 +644,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 								box_shadow_y_offset_min: box_shadow_y_offset_min,
 								update_interval_minutes: shadow_update_interval_minutes,
 		};
-		shadow_time = ShadowTimeFactory(shadow_props, logging.getChannelFunc("shadow"));
+		shadow_time = ShadowTimeFactory(shadow_props, logging.shadow.log);
 		shadow_time.start();
 	}
 
@@ -672,7 +672,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 		// set listener for clicks
 		Gmap.addListener("click", (mapsMouseEvent) => {
-			// logging.index("map mouse click");
+			// logging.index.log("map mouse click");
 			// doStuff.do("mouse_left_click_lng_lat", {"lng":mapsMouseEvent.latLng.lng(), "lat":mapsMouseEvent.latLng.lat()});
 			if (map_lines)
 			{
@@ -681,7 +681,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		});
 
 		Gmap.addListener("drag", (mapsMouseEvent) => { 
-			// logging.index("map drag");
+			// logging.index.log("map drag");
 			// mouse_at_rest = false;
 			// hideMouseToolTip();
 			// setCoordsPanel(getCoordsPanelIdleText());
@@ -704,7 +704,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 			});
 
 			Gmap.addListener("mouseout", (mapsMouseEvent) => {
-				logging.mouse("map mouseout");
+				logging.mouse.log("map mouseout");
 				clearMouseStillTimeout();
 				setCoordsPanel(getCoordsPanelIdleText());
 			});
