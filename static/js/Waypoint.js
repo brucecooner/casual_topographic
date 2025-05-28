@@ -2,12 +2,12 @@ export var WaypointNS = {
 
 	next_point_id : 0,
 
-	Waypoint:function(lat, lng, elevation_meters = undefined)
+	Waypoint:function(lat, lng, elevation_meters = null)
 	{
 		// declare
 		this.longitude = undefined;
 		this.latitude = undefined;
-		this.elevation_meters = undefined;
+		this.elevation_meters = null;
 		this.id = undefined;
 
 		// assign

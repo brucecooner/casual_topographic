@@ -49,6 +49,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		-quit using default_svg_id !!! find better way to locate svg!
 		-global config object
 		-config -> local storage
+		-consolidate constants in single location
 
 	KNOWN BUGS:
 		-can't activate info panel on touch?
@@ -133,7 +134,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	logging.addChannel("dnt",			{"enabled":false});
 	logging.addChannel("shadow",		{"enabled":false});
 	logging.addChannel("renderSVG",	{"enabled":true});
-	logging.addChannel("SVGee",		{"enabled":true});
+	logging.addChannel("SVGee",		{"enabled":false});
 	logging.addChannel("WPList", 		{"enabled":true})
 
 	// event system
@@ -521,7 +522,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	{
 		if (waypoints && waypoints_profile_svg_render)
 		{
-			waypoints_profile_svg_render.render(waypoints.getPoints());
+			waypoints_profile_svg_render.render(waypoints);//.getPoints());
 		}
 	}
 
@@ -594,7 +595,6 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 			waypoints = null;
 			waypoints_polyline_render.shutDown();
 			waypoints_polyline_render = null;
-			waypoints_profile_svg_render.shutDown();
 			waypoints_profile_svg_render = null;
 		}
 
