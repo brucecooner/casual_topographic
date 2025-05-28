@@ -1,4 +1,5 @@
 // import {WaypointNS} from 'Waypoint.js';
+import { GeoUtil } from './geo_util.js';
 
 export var WaypointListNS = {
 	WaypointList:function(log_fn = null)
@@ -18,9 +19,12 @@ export var WaypointListNS = {
 		this.segments = [];
 		this.newSegment = function(point1, point2) {
 			// TODO: take increasing latitude into account!
-			const lng_diff = point2.lng() - point1.lng();
-			const lat_diff = point2.lat() - point1.lat();
-			const distance_meters = Math.sqrt(Math.pow(lng_diff,2) + Math.pow(lat_diff,2)) * this.meters_per_degree;
+			// const lng_diff = point2.lng() - point1.lng();
+			// const lat_diff = point2.lat() - point1.lat();
+			// const distance_meters = Math.sqrt(Math.pow(lng_diff,2) + Math.pow(lat_diff,2)) * this.meters_per_degree;
+			const distance_meters = GeoUtil.distance_meters(point1.lat(), point1.lng(), point2.lat(), point2.lng());
+
+			console.log("distance meters: ", distance_meters);
 
 			return { point1, point2, distance_meters };
 		},
@@ -60,6 +64,12 @@ export var WaypointListNS = {
 		{
 			const total_distance_meters = this.segments.reduce((accum, cur_seg) => accum + cur_seg.distance_meters, 0);
 			return total_distance_meters;
+		}
+
+		// ----------------------------------------------------------------------
+		this.getDistanceMiles = function()
+		{
+			return this.getDistanceMeters() * GeoUtil.miles_per_meter;
 		}
 
 		// ----------------------------------------------------------------------

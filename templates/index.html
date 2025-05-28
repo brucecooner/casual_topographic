@@ -6,6 +6,9 @@
 	<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='CSS/index.css') }}">
 
 	<script src="{{url_for('static', filename='js/SVGee.js')}}"></script>
+	<script src="{{url_for('static', filename='js/LogChannels.js')}}"></script>
+	<script src="{{url_for('static', filename='js/DoStuff.js')}}"></script>
+	<script src="{{url_for('static', filename='js/util.js')}}"></script>
 
 	<script src="{{url_for('static', filename='js/ElevationValue.js')}}"></script>
 
@@ -14,9 +17,6 @@
 	<!-- <script src="{{url_for('static', filename='js/MapLines.js')}}"></script>
 	<script src="{{url_for('static', filename='js/MapLinesSVGRender.js')}}"></script> -->
 
-	<script src="{{url_for('static', filename='js/LogChannels.js')}}"></script>
-	<script src="{{url_for('static', filename='js/DoStuff.js')}}"></script>
-	<script src="{{url_for('static', filename='js/util.js')}}"></script>
 
 	<script src="{{url_for('static', filename='js/WaypointsProfileSVGRender.js')}}"></script>
 
@@ -24,6 +24,9 @@
 		import { DoNTimes, DoNTimesFactory } from "{{url_for('static', filename='/js/DoNTimes.js')}}"
 		window.DoNTimesFactory = DoNTimesFactory;
 		window.DoNTimes = DoNTimes;
+
+		import { GeoUtil } from "{{url_for('static', filename='js/geo_util.js')}}"
+		window.GeoUtil = GeoUtil;
 
 		import { ShadowTime, ShadowTimeFactory } from "{{url_for('static', filename='/js/ShadowTime.js')}}"
 		window.ShadowTime = ShadowTime;
@@ -46,10 +49,13 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 <!-- 
 	TODO:
+		-fix waypoints distance for latitude
+		-waypoints distance
 		-quit using default_svg_id !!! find better way to locate svg!
 		-global config object
 		-config -> local storage
 		-consolidate constants in single location
+		-signalling to index when svg render failed
 
 	KNOWN BUGS:
 		-can't activate info panel on touch?
@@ -244,7 +250,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		mouse_tooltip_dnt.start();
 		setMouseToolTip(mouse_x, mouse_y, mouse_tooltip_string);
 
-		getElevation(lat = mouse_pointer_lng_lat["lat"], lng = mouse_pointer_lng_lat["lng"]).then(elevation_meters => {
+		GeoUtil.getElevation(lat = mouse_pointer_lng_lat["lat"], lng = mouse_pointer_lng_lat["lng"]).then(elevation_meters => {
 			mouse_tooltip_dnt.stop();
 			if (mouse_at_rest)
 			{
@@ -320,7 +326,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		waypoints.addPoint(new_waypoint);
 
 		// set up elevation fetch
-		getElevation(lat = new_waypoint.lat(), lng = new_waypoint.lng()).then(elevation_meters => {
+		GeoUtil.getElevation(lat = new_waypoint.lat(), lng = new_waypoint.lng()).then(elevation_meters => {
 			new_waypoint.setElevationMeters(elevation_meters);
 
 			doStuff.do("render_waypoints_profile");
@@ -355,7 +361,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		mouse_tooltip_dnt.start();
 		setMouseToolTip(touch_mouse_x, touch_mouse_y, mouse_tooltip_string);
 
-		getElevation(lat = lng_lat_object["lat"], lng = lng_lat_object["lng"]).then(elevation_meters => {
+		GeoUtil.getElevation(lat = lng_lat_object["lat"], lng = lng_lat_object["lng"]).then(elevation_meters => {
 			mouse_tooltip_dnt.stop();
 
 			elevation_at_mouse_pointer.setElevationMeters(elevation_meters);
@@ -504,7 +510,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	{
 		logging.index.log("handleSVGProfileRendered()");
 
-		const svg_parent = document.getElementById("waypointsCanvasDivId");
+		const svg_parent = document.getElementById("waypointsProfileDivId");
 		const svg_element = document.getElementById("default_svg_id");
 
 		if (svg_element)
@@ -558,7 +564,9 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		{
 			logging.index.log("waypoints on");
 
-			const svg_parent = document.getElementById("waypointsCanvasDivId");
+			const svg_parent = document.getElementById("waypointsProfileDivId");
+			// show the profile div
+			svg_parent.style.display = "inherit";
 
 			waypoints = new WaypointListNS.WaypointList();
 			waypoints_polyline_render = new WaypointGMPolylinesNS.WaypointGMPolylines(gMap, logging.WPList.log);
@@ -585,12 +593,14 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		{
 			logging.index.log("waypoints off");
 
-			const svg_parent = document.getElementById("waypointsCanvasDivId");
+			const svg_parent = document.getElementById("waypointsProfileDivId");
 			const svg_element = document.getElementById("default_svg_id");
 			if (svg_element)
 			{
 				svg_parent.removeChild(svg_element);
 			}
+			// hide the profile div
+			svg_parent.style.display = "hidden";
 
 			waypoints = null;
 			waypoints_polyline_render.shutDown();
@@ -795,7 +805,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		<button id="waypointsModeButtonId" class="waypointsElementClass" onclick="toggleWaypointsMode()">Waypoints: OFF</button>
 	</div>
 
-	<div id="waypointsCanvasDivId" class="waypointsElementClass">
+	<div id="waypointsProfileDivId" class="waypointsElementClass">
 	</div>
 
 
