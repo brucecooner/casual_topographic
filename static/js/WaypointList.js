@@ -13,13 +13,6 @@ export var WaypointListNS = {
 		this.waypoints = [];
 
 		// ----------------------------------------------------------------------
-		this.next_point_id = 0;
-		this.getNextPointId = function()
-		{
-			return this.next_point_id++;
-		}
-
-		// ----------------------------------------------------------------------
 		this.numPoints = function()
 		{
 			return this.waypoints.length;
@@ -29,8 +22,6 @@ export var WaypointListNS = {
 		this.addPoint = function(waypoint)
 		{
 			this.log("addPoint()");
-
-			waypoint.id = this.getNextPointId();
 
 			this.waypoints.push(waypoint);
 		}

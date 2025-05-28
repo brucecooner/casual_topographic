@@ -31,6 +31,9 @@
 		window.WaypointListNS = WaypointListNS;
 		import { WaypointNS } from "{{url_for('static', filename='/js/Waypoint.js')}}"
 		window.WaypointNS = WaypointNS;
+
+		import { WaypointGMPolylinesNS } from "{{url_for('static', filename='/js/WaypointGMPolyLines.js')}}"
+		window.WaypointGMPolylinesNS = WaypointGMPolylinesNS;
 	</script>
 </head>
 
@@ -119,12 +122,13 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	var logging = LogChannelsNS.LogChannels(initialEnabled=true);
 	logging.addChannel("index", {"name_prefix_enabled":true });
 	// I really need a way to filter logs on channels...
-	logging.addChannel("DoStuff",		{"enabled":false });
-	logging.addChannel("mouse",		{"enabled":false });
+	logging.addChannel("DoStuff",		{"enabled":false});
+	logging.addChannel("mouse",		{"enabled":false});
 	logging.addChannel("dnt",			{"enabled":false});
 	logging.addChannel("shadow",		{"enabled":false});
-	logging.addChannel("render",		{"enabled":true });
-	logging.addChannel("SVGee",		{"enabled":true });
+	logging.addChannel("render",		{"enabled":true});
+	logging.addChannel("SVGee",		{"enabled":true});
+	logging.addChannel("WPList", 		{"enabled":true})
 
 	// event system
 	var doStuff = DoStuffNS.DoStuff(logging.DoStuff.log, true);
@@ -316,14 +320,21 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// }
 
 	// ----------------------------------------------------------------------------
+	function addWaypoint(lng_lat_object)
+	{
+		const new_waypoint = new WaypointNS.Waypoint(lat = lng_lat_object.lat, lng = lng_lat_object.lng, 0);
+		waypoints.addPoint(new_waypoint);
+		waypointsPolyLine.addPoint(new_waypoint);
+	}
+
+	// ----------------------------------------------------------------------------
 	// non-touch devices
 	function handleMouseMapLeftClick(lng_lat_object)
 	{
 		logging.index.log("handleMouseMapLeftClick():", lng_lat_object);
 		if (waypoints)
 		{
-			const new_waypoint = new WaypointNS.Waypoint(lat = lng_lat_object.lat, lng = lng_lat_object.lng, 0);
-			waypoints.addPoint(new_waypoint);
+			addWaypoint(lng_lat_object);
 		}
 	}
 
@@ -535,12 +546,9 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 			logging.index.log("waypoints on");
 
 			const svg_parent = document.getElementById("linesCanvasDivId");
-			// TODO: find a way to hook mouse clicks using the sub/pub system, which requires passing along google map events which I don't do yet
 
-			waypoints = WaypointListNS.WaypointList();
-
-			// create lines
-			// map_lines = MapLinesNS.MapLines(logging.maplines.log, gMap, MAX_POINTS_COUNT, getElevation);
+			waypoints = new WaypointListNS.WaypointList();
+			waypointsPolyLine = new WaypointGMPolylinesNS.WaypointGMPolylines(gMap, logging.WPList.log);
 
 			// create renderer
 			// map_lines_svg_render = MapLinesSVGRenderNS.MapLinesSVGRender(	logging.render.log,
@@ -575,6 +583,8 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 			// map_lines.shutDown();
 			// map_lines = undefined;
 			waypoints = null;
+			waypointsPolyLine.shutDown();
+			waypointsPolyLine = null;
 		}
 
 		setWaypointsModeButtonText(!!waypoints);
@@ -693,10 +703,6 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		Gmap.addListener("click", (mapsMouseEvent) => {
 			// logging.index.log("map mouse click");
 			doStuff.do("mouse_left_click_lng_lat", {"lng":mapsMouseEvent.latLng.lng(), "lat":mapsMouseEvent.latLng.lat()});
-			// if (map_lines)
-			// {
-			// 	// map_lines.addPoint(mapsMouseEvent);
-			// }
 		});
 
 		Gmap.addListener("drag", (mapsMouseEvent) => { 
