@@ -1,4 +1,4 @@
-var WaypointNS = {
+export var WaypointNS = {
 	// there is no single specification about which dimension comes first, so I will reject
 	// either and demand an object, but allow for two key name sets on that object
 	Waypoint:function(lat, lng, elevation)

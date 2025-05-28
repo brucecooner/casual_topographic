@@ -9,7 +9,7 @@
 
 	<script src="{{url_for('static', filename='js/ElevationValue.js')}}"></script>
 
-	<script src="{{url_for('static', filename='js/Waypoint.js')}}"></script>
+	<!-- <script type="module" src="{{url_for('static', filename='js/Waypoint.js')}}"></script> -->
 
 	<!-- <script src="{{url_for('static', filename='js/MapLines.js')}}"></script>
 	<script src="{{url_for('static', filename='js/MapLinesSVGRender.js')}}"></script> -->
@@ -26,6 +26,11 @@
 		import { ShadowTime, ShadowTimeFactory } from "{{url_for('static', filename='/js/ShadowTime.js')}}"
 		window.ShadowTime = ShadowTime;
 		window.ShadowTimeFactory = ShadowTimeFactory;
+
+		import { WaypointListNS } from "{{url_for('static', filename='/js/WaypointList.js')}}"
+		window.WaypointListNS = WaypointListNS;
+		import { WaypointNS } from "{{url_for('static', filename='/js/Waypoint.js')}}"
+		window.WaypointNS = WaypointNS;
 	</script>
 </head>
 
@@ -237,7 +242,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 				setMouseToolTip(mouse_x, mouse_y, `${toPrecision(elevation_at_mouse_pointer.elevation, DISPLAY_PRECISION)} ${elevation_at_mouse_pointer.units_short}`);
 			}
 		}).catch(err => {
-			console.error(err);
+			logging.index.error(err);
 			clearMouseStillTimeout();
 			// setMouseToolTip(mouse_x, mouse_y, `:( ${err}`);
 			setMouseToolTip(mouse_x, mouse_y, ':(  unavailable');
@@ -318,7 +323,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		if (waypoints)
 		{
 			const new_waypoint = new WaypointNS.Waypoint(lat = lng_lat_object.lat, lng = lng_lat_object.lng, 0);
-			waypoints.push(new_waypoint);
+			waypoints.addPoint(new_waypoint);
 		}
 	}
 
@@ -532,7 +537,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 			const svg_parent = document.getElementById("linesCanvasDivId");
 			// TODO: find a way to hook mouse clicks using the sub/pub system, which requires passing along google map events which I don't do yet
 
-			waypoints = [];
+			waypoints = WaypointListNS.WaypointList();
 
 			// create lines
 			// map_lines = MapLinesNS.MapLines(logging.maplines.log, gMap, MAX_POINTS_COUNT, getElevation);
