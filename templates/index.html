@@ -18,6 +18,8 @@
 	<script src="{{url_for('static', filename='js/DoStuff.js')}}"></script>
 	<script src="{{url_for('static', filename='js/util.js')}}"></script>
 
+	<script src="{{url_for('static', filename='js/WaypointsProfileSVGRender.js')}}"></script>
+
 	<script type="module">
 		import { DoNTimes, DoNTimesFactory } from "{{url_for('static', filename='/js/DoNTimes.js')}}"
 		window.DoNTimesFactory = DoNTimesFactory;
@@ -27,10 +29,11 @@
 		window.ShadowTime = ShadowTime;
 		window.ShadowTimeFactory = ShadowTimeFactory;
 
-		import { WaypointListNS } from "{{url_for('static', filename='/js/WaypointList.js')}}"
-		window.WaypointListNS = WaypointListNS;
+		// not a fan of this heavier format
 		import { WaypointNS } from "{{url_for('static', filename='/js/Waypoint.js')}}"
 		window.WaypointNS = WaypointNS;
+		import { WaypointListNS } from "{{url_for('static', filename='/js/WaypointList.js')}}"
+		window.WaypointListNS = WaypointListNS;
 
 		import { WaypointGMPolylinesNS } from "{{url_for('static', filename='/js/WaypointGMPolyLines.js')}}"
 		window.WaypointGMPolylinesNS = WaypointGMPolylinesNS;
@@ -43,11 +46,13 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 <!-- 
 	TODO:
+		-quit using default_svg_id !!! find better way to locate svg!
 		-global config object
 		-config -> local storage
 
 	KNOWN BUGS:
 		-can't activate info panel on touch?
+		-start height query, then drag map, then release, tooltip will still be at old location
  -->
 
 <body>
@@ -63,7 +68,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		"map_drag",
 		"show_info_panel",
 		"hide_info_panel",
-		"render_lines_profile",
+		"render_waypoints_profile",
 		"toggle_elevation_units",
 	];
 
@@ -109,8 +114,9 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	let mouse_tooltip_dnt = undefined;
 
 	// only created when needed
-	// TODO: make poly line renderer!
 	let waypoints = null;
+	let waypoints_polyline_render = null;
+	let waypoints_profile_svg_render = null;
 
 	// google map instance
 	gMap = undefined;
@@ -126,7 +132,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	logging.addChannel("mouse",		{"enabled":false});
 	logging.addChannel("dnt",			{"enabled":false});
 	logging.addChannel("shadow",		{"enabled":false});
-	logging.addChannel("render",		{"enabled":true});
+	logging.addChannel("renderSVG",	{"enabled":true});
 	logging.addChannel("SVGee",		{"enabled":true});
 	logging.addChannel("WPList", 		{"enabled":true})
 
@@ -237,7 +243,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		mouse_tooltip_dnt.start();
 		setMouseToolTip(mouse_x, mouse_y, mouse_tooltip_string);
 
-		getElevation(mouse_pointer_lng_lat).then(elevation_meters => {
+		getElevation(lat = mouse_pointer_lng_lat["lat"], lng = mouse_pointer_lng_lat["lng"]).then(elevation_meters => {
 			mouse_tooltip_dnt.stop();
 			if (mouse_at_rest)
 			{
@@ -306,25 +312,23 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// 	});	
 	// }
 
-	// -------------------------------------------------------------------------
-	// function handleMouseLeftClick(lng_lat_obj)
-	// {
-	// 	logging.index.log("h: mouse left click");
-
-	// 	mouse_pointer_lng_lat = lng_lat_obj;
-
-	// 	// this needs it own whole thing
-	// 	getElevation(mouse_pointer_lng_lat, (elevation) => {
-	// 		dropMapPin(lng_lat_obj["lng"], lng_lat_obj["lat"], `${toPrecision(elevation, 2)} ft`);
-	// 	});
-	// }
-
 	// ----------------------------------------------------------------------------
 	function addWaypoint(lng_lat_object)
 	{
-		const new_waypoint = new WaypointNS.Waypoint(lat = lng_lat_object.lat, lng = lng_lat_object.lng, 0);
+		const new_waypoint = new WaypointNS.Waypoint(lat = lng_lat_object.lat, lng = lng_lat_object.lng);
 		waypoints.addPoint(new_waypoint);
-		waypointsPolyLine.addPoint(new_waypoint);
+
+		// set up elevation fetch
+		getElevation(lat = new_waypoint.lat(), lng = new_waypoint.lng()).then(elevation_meters => {
+			new_waypoint.setElevationMeters(elevation_meters);
+
+			doStuff.do("render_waypoints_profile");
+		}).catch(err => {
+			console.error(err);
+		});
+
+		// don't need elevation for polylines
+		waypoints_polyline_render.addPoint(new_waypoint);
 	}
 
 	// ----------------------------------------------------------------------------
@@ -350,7 +354,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		mouse_tooltip_dnt.start();
 		setMouseToolTip(touch_mouse_x, touch_mouse_y, mouse_tooltip_string);
 
-		getElevation(lng_lat_object).then(elevation_meters => {
+		getElevation(lat = lng_lat_object["lat"], lng = lng_lat_object["lng"]).then(elevation_meters => {
 			mouse_tooltip_dnt.stop();
 
 			elevation_at_mouse_pointer.setElevationMeters(elevation_meters);
@@ -466,7 +470,6 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		setCoordsPanel(getCoordsPanelIdleText());
 	}
 
-
 	// ----------------------------------------------------------------------------
 	function setWaypointsModeButtonText(line_mode)
 	{
@@ -479,28 +482,28 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		document.getElementById("toggleUnitsButtonId").innerHTML = "Units: " + new_text;
 	}
 
+	// // ----------------------------------------------------------------------------
+	// function createCanvas(canvas_id, canvas_class, parent_element)
+	// {
+	// 	let new_canvas = document.createElement("canvas");
+	// 	new_canvas.id = canvas_id;
+	// 	new_canvas.classList.add(canvas_class);
+	// 	new_canvas.id = canvas_id;
+
+	// 	new_canvas.width = parent_element.clientWidth;
+	// 	new_canvas.height = parent_element.clientHeight;
+
+	// 	parent_element.append(new_canvas);
+
+	// 	return new_canvas;
+	// }
+
 	// ----------------------------------------------------------------------------
-	function createCanvas(canvas_id, canvas_class, parent_element)
+	function handleSVGProfileRendered(svg_text)
 	{
-		let new_canvas = document.createElement("canvas");
-		new_canvas.id = canvas_id;
-		new_canvas.classList.add(canvas_class);
-		new_canvas.id = canvas_id;
+		logging.index.log("handleSVGProfileRendered()");
 
-		new_canvas.width = parent_element.clientWidth;
-		new_canvas.height = parent_element.clientHeight;
-
-		parent_element.append(new_canvas);
-
-		return new_canvas;
-	}
-
-	// ----------------------------------------------------------------------------
-	function handleSVG(svg_text)
-	{
-		logging.index.log("handleSVG()");
-
-		const svg_parent = document.getElementById("linesCanvasDivId");
+		const svg_parent = document.getElementById("waypointsCanvasDivId");
 		const svg_element = document.getElementById("default_svg_id");
 
 		if (svg_element)
@@ -511,6 +514,15 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		// logging.index.log(svg_text);
 		const svg_node = document.createRange().createContextualFragment(svg_text);
 		svg_parent.appendChild(svg_node);
+	}
+
+	// ----------------------------------------------------------------------------
+	function handleRenderWaypointsProfile()
+	{
+		if (waypoints && waypoints_profile_svg_render)
+		{
+			waypoints_profile_svg_render.render(waypoints.getPoints());
+		}
 	}
 
 	// ----------------------------------------------------------------------------
@@ -545,17 +557,18 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		{
 			logging.index.log("waypoints on");
 
-			const svg_parent = document.getElementById("linesCanvasDivId");
+			const svg_parent = document.getElementById("waypointsCanvasDivId");
 
 			waypoints = new WaypointListNS.WaypointList();
-			waypointsPolyLine = new WaypointGMPolylinesNS.WaypointGMPolylines(gMap, logging.WPList.log);
+			waypoints_polyline_render = new WaypointGMPolylinesNS.WaypointGMPolylines(gMap, logging.WPList.log);
 
 			// create renderer
-			// map_lines_svg_render = MapLinesSVGRenderNS.MapLinesSVGRender(	logging.render.log,
-			// 																					svg_parent.clientWidth,
-			// 																					svg_parent.clientHeight,
-			// 																					svgee,
-			// 																					handleSVG);
+			waypoints_profile_svg_render = WaypointsProfileSVGRenderNS.WaypointsProfileSVGRender(
+																								logging.renderSVG.log,
+																								svg_parent.clientWidth,
+																								svg_parent.clientHeight,
+																								svgee,
+																								handleSVGProfileRendered);
 
 			// test svg
 			// svgee.new(svg_parent.clientWidth, svg_parent.clientHeight);
@@ -571,20 +584,18 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		{
 			logging.index.log("waypoints off");
 
-			const svg_parent = document.getElementById("linesCanvasDivId");
+			const svg_parent = document.getElementById("waypointsCanvasDivId");
 			const svg_element = document.getElementById("default_svg_id");
 			if (svg_element)
 			{
 				svg_parent.removeChild(svg_element);
 			}
 
-			// map_lines_svg_render = undefined;
-
-			// map_lines.shutDown();
-			// map_lines = undefined;
 			waypoints = null;
-			waypointsPolyLine.shutDown();
-			waypointsPolyLine = null;
+			waypoints_polyline_render.shutDown();
+			waypoints_polyline_render = null;
+			waypoints_profile_svg_render.shutDown();
+			waypoints_profile_svg_render = null;
 		}
 
 		setWaypointsModeButtonText(!!waypoints);
@@ -612,6 +623,8 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 				const cur_elem = waypoints_feature_elements[i];
 				cur_elem.style.display = "inherit";
 			}
+
+			doStuff.sub("render_waypoints_profile", handleRenderWaypointsProfile)
 		}
 
 		mouse_tooltip_element = document.getElementById("mouseTooltipId");

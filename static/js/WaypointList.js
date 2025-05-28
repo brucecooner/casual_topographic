@@ -26,6 +26,12 @@ export var WaypointListNS = {
 			this.waypoints.push(waypoint);
 		}
 
+		// ----------------------------------------------------------------------
+		this.getPoints = function()
+		{
+			return this.waypoints;
+		}
+
 		this.log("WaypointList constructed");
 		return this;
 	}	// end constructor

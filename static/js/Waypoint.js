@@ -2,23 +2,32 @@ export var WaypointNS = {
 
 	next_point_id : 0,
 
-	Waypoint:function(lat, lng, elevation)
+	Waypoint:function(lat, lng, elevation_meters = undefined)
 	{
+		// declare
 		this.longitude = undefined;
 		this.latitude = undefined;
-		this.elevation = undefined;
+		this.elevation_meters = undefined;
 		this.id = undefined;
 
-		// more to come...
-
+		// assign
 		this.latitude = lat;
 		this.longitude = lng;
 
-		this.elevation = elevation;
+		this.elevation_meters = elevation_meters;
 
 		this.id = WaypointNS.next_point_id++;
 
+		// for compatibility with Google Map mouse events
 		this.lat = function() { return this.latitude; }
 		this.lng = function() { return this.longitude; }
+
+		this.setElevationMeters = function(elev_meters) { this.elevation_meters = elev_meters; }
+
+		// get elevation
+		Object.defineProperty(this, "elevation", {
+			get: () => { return this.elevation_meters; }
+		});
+
 	}
 };

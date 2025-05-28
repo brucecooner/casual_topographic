@@ -67,13 +67,11 @@
 	let getElevation_error_rate = 0.0;
 
 	// ----------------------------------------------------------------------------
-	async function getElevation(lng_lat_obj, elevation_callback)
+	async function getElevation(lat, lng)
 	{
 		// console.log("getElevation(", lng_lat_obj, ")");
 
-		const error_rate = 0.9;
-
-		const elevation_url = getEPQSUrl(lng_lat_obj["lng"], lng_lat_obj["lat"])
+		const elevation_url = getEPQSUrl(lng, lat)
 
 		return new Promise((resolve, reject) => {
 			fetch(elevation_url).then(res =>
