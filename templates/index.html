@@ -9,14 +9,9 @@
 	<script src="{{url_for('static', filename='js/LogChannels.js')}}"></script>
 	<script src="{{url_for('static', filename='js/DoStuff.js')}}"></script>
 	<script src="{{url_for('static', filename='js/util.js')}}"></script>
-
-	<script src="{{url_for('static', filename='js/ElevationValue.js')}}"></script>
+	<script src="{{url_for('static', filename='js/FormatUnits.js')}}"></script>
 
 	<!-- <script type="module" src="{{url_for('static', filename='js/Waypoint.js')}}"></script> -->
-
-	<!-- <script src="{{url_for('static', filename='js/MapLines.js')}}"></script>
-	<script src="{{url_for('static', filename='js/MapLinesSVGRender.js')}}"></script> -->
-
 
 	<script src="{{url_for('static', filename='js/WaypointsProfileSVGRender.js')}}"></script>
 
@@ -49,8 +44,13 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 <!-- 
 	TODO:
-		-fix waypoints distance for latitude
-		-waypoints distance
+		-miles/km for larger distances
+		-move coordinates from over profile
+		-better differentiate waypoints button display from waypoints active vs. feature not available
+			-need feature-available driven visibility
+		-margin around svg on profile view
+
+		-break up index.html into modules
 		-quit using default_svg_id !!! find better way to locate svg!
 		-global config object
 		-config -> local storage
@@ -58,6 +58,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		-signalling to index when svg render failed
 
 	KNOWN BUGS:
+		-svg remains same size when window resized, need to re-render on window resize
 		-can't activate info panel on touch?
 		-start height query, then drag map, then release, tooltip will still be at old location
  -->
@@ -97,12 +98,10 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	const box_shadow_blur_radius = 2;
 	const box_shadow_spread = 1;
 
-
 	// =========================================================================
 	// variables
 	// =========================================================================
-	// intended to be ElevationValue
-	let elevation_at_mouse_pointer = ElevationValueNS.ElevationValue();
+	let elevation_at_mouse_pointer_meters = 0;
 
 	// config
 	let mouse_pointer_still_timeout_id = undefined;
@@ -148,6 +147,9 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 	// svgee
 	var svgee = SVGeeNS.SVGee(logging.SVGee.log);
+
+	// units conversion/formatting
+	var units_formatter = FormatUnitsNS.FormatUnits();
 
 	// TODO: enumerate event names somewhere ?
 	app_events.forEach(cur_event => {
@@ -254,9 +256,9 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 			mouse_tooltip_dnt.stop();
 			if (mouse_at_rest)
 			{
-				elevation_at_mouse_pointer.setElevationMeters(elevation_meters);
+				elevation_at_mouse_pointer_meters = elevation_meters;
 
-				setMouseToolTip(mouse_x, mouse_y, `${toPrecision(elevation_at_mouse_pointer.elevation, DISPLAY_PRECISION)} ${elevation_at_mouse_pointer.units_short}`);
+				setMouseToolTip(mouse_x, mouse_y, units_formatter.format(elevation_at_mouse_pointer_meters));
 			}
 		}).catch(err => {
 			logging.index.error(err);
@@ -320,6 +322,12 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// }
 
 	// ----------------------------------------------------------------------------
+	function setWaypointsLengthDisplay(length_meters)
+	{
+		document.getElementById("waypointsLengthId").innerHTML = units_formatter.format(length_meters);
+	}
+
+	// ----------------------------------------------------------------------------
 	function addWaypoint(lng_lat_object)
 	{
 		const new_waypoint = new WaypointNS.Waypoint(lat = lng_lat_object.lat, lng = lng_lat_object.lng);
@@ -336,6 +344,8 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 		// don't need elevation for polylines
 		waypoints_polyline_render.addPoint(new_waypoint);
+
+		setWaypointsLengthDisplay(waypoints.getLengthMeters());
 	}
 
 	// ----------------------------------------------------------------------------
@@ -364,9 +374,9 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		GeoUtil.getElevation(lat = lng_lat_object["lat"], lng = lng_lat_object["lng"]).then(elevation_meters => {
 			mouse_tooltip_dnt.stop();
 
-			elevation_at_mouse_pointer.setElevationMeters(elevation_meters);
+			elevation_at_mouse_pointer_meters = elevation_meters;
 
-			setMouseToolTip(touch_mouse_x, touch_mouse_y, `${toPrecision(elevation_at_mouse_pointer.elevation, DISPLAY_PRECISION)} ${elevation_at_mouse_pointer.units_short}`);
+			setMouseToolTip(touch_mouse_x, touch_mouse_y, units_formatter.format(elevation_at_mouse_pointer_meters));
 		}).catch(err => {
 			console.error(err);
 			// setMouseToolTip(mouse_x, mouse_y, `:( ${err}`);
@@ -537,22 +547,25 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	{
 		let elevation_units_type = "";
 
-		switch (elevation_at_mouse_pointer.units)
+		switch (units_formatter.getUnitType())
 		{
-			case ElevationValueNS.UNIT_TYPE_METERS:
-				elevation_units_type = ElevationValueNS.UNIT_TYPE_FEET;
+			case FormatUnitsNS.UNIT_TYPE_METERS:
+				units_formatter.setUnitType(FormatUnitsNS.UNIT_TYPE_FEET);
 				break;
-			case ElevationValueNS.UNIT_TYPE_FEET:
-				elevation_units_type = ElevationValueNS.UNIT_TYPE_METERS;
+			case FormatUnitsNS.UNIT_TYPE_FEET:
+				units_formatter.setUnitType( FormatUnitsNS.UNIT_TYPE_METERS );
 				break;
 			default:
 				const err = `Unknown elevation_units_type: ${elevation_units_type}`;
 				throw new Error(err);
 		}
 
-		elevation_at_mouse_pointer.setUnits(elevation_units_type);
-		setUnitsButtonText(elevation_units_type);
-		setMouseTooltipText(`${toPrecision(elevation_at_mouse_pointer.elevation, DISPLAY_PRECISION)} ${elevation_at_mouse_pointer.units_short}`);
+		setUnitsButtonText(units_formatter.getUnitString());
+		setMouseTooltipText(units_formatter.format(elevation_at_mouse_pointer_meters));
+		if ( waypoints)
+		{
+			setWaypointsLengthDisplay(waypoints.getLengthMeters());
+		}
 	}
 
 	// ----------------------------------------------------------------------------
@@ -564,9 +577,11 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		{
 			logging.index.log("waypoints on");
 
+			// HAZARD: delicate code: you MUST display the svg parent before creating the svg, or the parent is 
+			// not visible and the svg gets sized at zero
+			setDataAttributeOnClass("waypointsElementClass", "data-waypoints-active", "1");
+
 			const svg_parent = document.getElementById("waypointsProfileDivId");
-			// show the profile div
-			svg_parent.style.display = "inherit";
 
 			waypoints = new WaypointListNS.WaypointList();
 			waypoints_polyline_render = new WaypointGMPolylinesNS.WaypointGMPolylines(gMap, logging.WPList.log);
@@ -588,6 +603,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 
 			// hook renderer to lines
 			// map_lines.render_callback = map_lines_svg_render.render.bind(map_lines_svg_render);
+
 		}
 		else
 		{
@@ -606,7 +622,10 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 			waypoints_polyline_render.shutDown();
 			waypoints_polyline_render = null;
 			waypoints_profile_svg_render = null;
+
+			setDataAttributeOnClass("waypointsElementClass", "data-waypoints-active", "0");
 		}
+
 
 		setWaypointsModeButtonText(!!waypoints);
 	}
@@ -614,6 +633,8 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// ----------------------------------------------------------------------------
 	function initApp()
 	{
+		units_formatter.setUnitType(FormatUnitsNS.UNIT_TYPE_METERS);
+
 		// ----- investigate query params -----
 		const queryString = window.location.search;
 		logging.index.log("queryString:" + queryString);
@@ -623,16 +644,12 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		logging.index.log("waypoints: " + waypoints_feature);
 
 		// ---- layout init -----
-		setUnitsButtonText(elevation_at_mouse_pointer.units);
+		setUnitsButtonText(units_formatter.getUnitString());
 
 		if (waypoints_feature)
 		{
-			const waypoints_feature_elements = document.getElementsByClassName("waypointsElementClass");
-			for (let i = 0; i < waypoints_feature_elements.length; i++)
-			{
-				const cur_elem = waypoints_feature_elements[i];
-				cur_elem.style.display = "inherit";
-			}
+			// turn on waypoints button
+			document.getElementById("waypointsModeButtonId").style.display = "inherit";
 
 			doStuff.sub("render_waypoints_profile", handleRenderWaypointsProfile)
 		}
@@ -805,7 +822,8 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 		<button id="waypointsModeButtonId" class="waypointsElementClass" onclick="toggleWaypointsMode()">Waypoints: OFF</button>
 	</div>
 
-	<div id="waypointsProfileDivId" class="waypointsElementClass">
+	<div id="waypointsProfileDivId" class="waypointsElementClass" data-waypoints-active="0">
+	<span id="waypointsLengthId" class="waypointsElementClass"></span>
 	</div>
 
 

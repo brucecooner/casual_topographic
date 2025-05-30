@@ -1,4 +1,4 @@
-// import {WaypointNS} from 'Waypoint.js';
+
 import { GeoUtil } from './geo_util.js';
 
 export var WaypointListNS = {
@@ -22,11 +22,11 @@ export var WaypointListNS = {
 			// const lng_diff = point2.lng() - point1.lng();
 			// const lat_diff = point2.lat() - point1.lat();
 			// const distance_meters = Math.sqrt(Math.pow(lng_diff,2) + Math.pow(lat_diff,2)) * this.meters_per_degree;
-			const distance_meters = GeoUtil.distance_meters(point1.lat(), point1.lng(), point2.lat(), point2.lng());
+			const length_meters = GeoUtil.distance_meters(point1.lat(), point1.lng(), point2.lat(), point2.lng());
 
-			console.log("distance meters: ", distance_meters);
+			console.log("length meters: ", length_meters);
 
-			return { point1, point2, distance_meters };
+			return { point1, point2, length_meters };
 		},
 
 		// ----------------------------------------------------------------------
@@ -59,18 +59,18 @@ export var WaypointListNS = {
 		}
 
 		// ----------------------------------------------------------------------
-		// distance between all waypoints
-		this.getDistanceMeters = function()
+		// distance from first waypoint to last waypoint
+		this.getLengthMeters = function()
 		{
-			const total_distance_meters = this.segments.reduce((accum, cur_seg) => accum + cur_seg.distance_meters, 0);
-			return total_distance_meters;
+			const total_length_meters = this.segments.reduce((accum, cur_seg) => accum + cur_seg.length_meters, 0);
+			return total_length_meters;
 		}
 
 		// ----------------------------------------------------------------------
-		this.getDistanceMiles = function()
-		{
-			return this.getDistanceMeters() * GeoUtil.miles_per_meter;
-		}
+		// this.getLengthMiles = function()
+		// {
+		// 	return this.getLengthMeters() * GeoUtil.miles_per_meter;
+		// }
 
 		// ----------------------------------------------------------------------
 		// warning: you might get nulls back for elevation values if they haven't

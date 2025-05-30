@@ -26,3 +26,22 @@ function isTouchDevice()
 {
 	return 'ontouchstart' in window; // || navigator.maxTouchPoints > 0;
 }
+
+// -------------------------------------------------------------------------
+function setDataAttributeOnClass(class_name, data_attribute, value)
+{
+	console.log("setDataAttributeOnClass()");
+	console.log("class name:", class_name, "  data_attrib: " , data_attribute, " value:", value);
+
+	const elements = document.getElementsByClassName(class_name);
+
+	for (let i = 0; i < elements.length; i++)
+	{
+		const cur_elem = elements[i];
+
+		console.log("setting on :");
+		console.log(cur_elem);
+
+		cur_elem.setAttribute(data_attribute, value);
+	}
+}
