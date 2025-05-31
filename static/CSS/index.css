@@ -132,10 +132,14 @@ body {
 
 #waypointsLengthId {
 	position:absolute;
-	top:0px;
-	left:0px;
+	bottom:0px;
+	right:0px;
 	display:inherit;
 	margin: 5px;
+	color: white;
+	background-color:rgba(13, 20, 11, 0.365);
+	padding: 4px 8px 4px 8px;
+	border-radius: 4px;
 }
 
 #waypointsProfileDivId[data-waypoints-active="1"] {

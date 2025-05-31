@@ -2,18 +2,29 @@
 var FormatUnitsNS = {
 
 	UNIT_TYPE_METERS: "Meters",
+	UNIT_TYPE_KILOMETERS: "Kilometers",
 	UNIT_TYPE_FEET: "Feet",
+	UNIT_TYPE_MILES: "Miles",
 
+	// conversions
 	FEET_PER_METER: 3.28084,
+	FEET_PER_MILE: 5280.0,
 
 	// =========================================================================
 	FormatUnits:function()
 	{
-		// unit type that will be returned
+		// unit type that will be returned by default
 		this.unit_type = FormatUnitsNS.UNIT_TYPE_METERS;
 
 		// default precision
-		this.precision = 4;
+		this.precision = 2;
+
+		this.abbreviated_units = {
+			"Meters": "m",
+			"Feet": "ft",
+			"Kilometers": "km",
+			"Miles": "mi",
+		};
 
 		// ----------------------------------------------------------------------
 		this.getUnitType = function()
@@ -38,9 +49,10 @@ var FormatUnitsNS = {
 		}
 
 		// ----------------------------------------------------------------------
+		// long form of current units
 		this.getUnitString = function()
 		{
-			unit_string = "??";
+			unit_string = "unknown type";
 
 			switch (this.unit_type)
 			{
@@ -52,7 +64,7 @@ var FormatUnitsNS = {
 					unit_string = "Feet";
 					break;
 				default:
-					const err = "getUnitSTring(): unknown unit type: " + unit_type;
+					const err = "getUnitSTring(): invalid unit type: " + unit_type;
 					throw new Error(err);
 			}
 
@@ -70,17 +82,43 @@ var FormatUnitsNS = {
 		}
 
 		// ----------------------------------------------------------------------
-		this.format = function(value_meters)
+		// if larger_units is true, will upscale to km/miles
+		this.format = function(value_meters, larger_units = false)
 		{
+			let value_final = value_meters;
+			let units_string = "unknown type";
+
 			switch (this.unit_type)
 			{
 				case FormatUnitsNS.UNIT_TYPE_METERS:
-					return `${this.toPrecision(value_meters)} m`;
+					value_final = value_meters;
+					units_string = this.abbreviated_units[FormatUnitsNS.UNIT_TYPE_METERS];
+
+					if (larger_units && value_final >= 1000.0)
+					{
+						value_final /= 1000.0;
+						units_string = this.abbreviated_units[FormatUnitsNS.UNIT_TYPE_KILOMETERS];
+					}
+				break;
 
 				case FormatUnitsNS.UNIT_TYPE_FEET:
-					const value_feet = value_meters * FormatUnitsNS.FEET_PER_METER;
-					return `${this.toPrecision(value_feet)} ft`;
+					value_final = value_meters * FormatUnitsNS.FEET_PER_METER;
+					units_string = FormatUnitsNS.UNIT_TYPE_FEET;
+
+					if (larger_units && value_final >= FormatUnitsNS.FEET_PER_MILE * 0.5)
+					{
+						value_final /= FormatUnitsNS.FEET_PER_MILE;
+						units_string = this.abbreviated_units[FormatUnitsNS.UNIT_TYPE_MILES];
+					}
+				break;
+
+				default:
+					const err = `FormatUnits.format() unknown unit_type: ${this.unit_type}`;
+					throw new Error(err);
+				break;
 			}
+
+			return `${this.toPrecision(value_final)} ${units_string}`;
 		}
 
 		return this;

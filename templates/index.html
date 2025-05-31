@@ -324,7 +324,8 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 	// ----------------------------------------------------------------------------
 	function setWaypointsLengthDisplay(length_meters)
 	{
-		document.getElementById("waypointsLengthId").innerHTML = units_formatter.format(length_meters);
+		// note: upscale distance
+		document.getElementById("waypointsLengthId").innerHTML = units_formatter.format(length_meters, true);
 	}
 
 	// ----------------------------------------------------------------------------
@@ -594,16 +595,7 @@ maps events demo: https://developers.google.com/maps/documentation/javascript/ap
 																								svgee,
 																								handleSVGProfileRendered);
 
-			// test svg
-			// svgee.new(svg_parent.clientWidth, svg_parent.clientHeight);
-			// svgee.appendNode(svgee.line(0,0,200,200));
-			// const the_svg = svgee.generateSVG();
-			// const svg_node = document.createRange().createContextualFragment(the_svg);
-			// svg_parent.appendChild(svg_node);
-
-			// hook renderer to lines
-			// map_lines.render_callback = map_lines_svg_render.render.bind(map_lines_svg_render);
-
+			setWaypointsLengthDisplay(0.0);
 		}
 		else
 		{
